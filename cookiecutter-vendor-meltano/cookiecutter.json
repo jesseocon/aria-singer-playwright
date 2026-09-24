@@ -11,7 +11,7 @@
   "login_url": "https://example.com/login",
   "singer_playwright_install": ["path", "git"],
   "singer_playwright_local_path": "../aria-singer-playwright",
-  "singer_playwright_git_url": "https://github.com/YOUR_ORG/aria-singer-playwright.git",
+  "singer_playwright_git_url": "https://github.com/jesseocon/aria-singer-playwright.git",
   "singer_playwright_rev": "v0.1.0",
   "_copy_without_render": []
 }

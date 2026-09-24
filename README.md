@@ -2,7 +2,7 @@
 
 Shared **Playwright + Singer SDK** framework for browser-backed taps (`PlaywrightTap`, `PlaywrightStream`, auth CLI, workshop daemon).
 
-Site-specific taps live in **separate repos** (e.g. `aria-lighthouse`, `aria-profitsword`). They depend on this package only—not on each other.
+Site-specific taps live in **separate repos** (e.g. [aria-lighthouse-tap](https://github.com/jesseocon/aria-lighthouse-tap)). They depend on this package only—not on each other.
 
 ## Install as a dependency
 
@@ -18,7 +18,7 @@ singer-playwright = { path = "../aria-singer-playwright", editable = true }
 
 ```toml
 [tool.uv.sources]
-singer-playwright = { git = "https://github.com/YOUR_ORG/aria-singer-playwright.git", rev = "v0.1.0" }
+singer-playwright = { git = "https://github.com/jesseocon/aria-singer-playwright.git", rev = "v0.1.0" }
 ```
 
 Then `dependencies = ["singer-playwright", …]` and `uv sync`.

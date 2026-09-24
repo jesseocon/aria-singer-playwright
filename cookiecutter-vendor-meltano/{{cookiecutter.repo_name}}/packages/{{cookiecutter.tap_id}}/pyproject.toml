@@ -10,10 +10,13 @@ readme = "README.md"
 authors = [{ name = "{{ cookiecutter.admin_name }}", email = "{{ cookiecutter.admin_email }}" }]
 requires-python = ">=3.10"
 dependencies = [
-    "singer-playwright",
+    "singer-playwright @ git+{{ cookiecutter.singer_playwright_git_url }}@{{ cookiecutter.singer_playwright_rev }}",
     "singer-sdk~=0.54.5",
     "typing-extensions>=4.5.0; python_version < '3.13'",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project.scripts]
 {{ cookiecutter.tap_id }} = "{{ cookiecutter.library_name }}.tap:Tap{{ cookiecutter.source_name }}.cli"
