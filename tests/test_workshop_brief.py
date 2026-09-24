@@ -6,11 +6,12 @@ from pathlib import Path
 
 from singer_playwright.workshop.brief import evaluate_success, load_brief
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+STRATEGY_BRIEF = FIXTURES / "strategy-snapshot.yaml"
 
 
 def test_load_strategy_snapshot_brief() -> None:
-    brief = load_brief(REPO_ROOT / "briefs/strategy-snapshot.yaml")
+    brief = load_brief(STRATEGY_BRIEF)
     assert brief.tap == "tap-lighthouse"
     assert brief.stream == "strategy-snapshot"
     assert brief.success.min_records == 30
@@ -18,7 +19,7 @@ def test_load_strategy_snapshot_brief() -> None:
 
 
 def test_evaluate_success_passes() -> None:
-    brief = load_brief(REPO_ROOT / "briefs/strategy-snapshot.yaml")
+    brief = load_brief(STRATEGY_BRIEF)
     result = evaluate_success(
         brief,
         records=[{"date": "2026-01-01", "revenue": "100"}] * 30,
@@ -28,7 +29,7 @@ def test_evaluate_success_passes() -> None:
 
 
 def test_evaluate_success_fails_on_login_page() -> None:
-    brief = load_brief(REPO_ROOT / "briefs/strategy-snapshot.yaml")
+    brief = load_brief(STRATEGY_BRIEF)
     result = evaluate_success(
         brief,
         records=[{"date": "2026-01-01"}] * 30,

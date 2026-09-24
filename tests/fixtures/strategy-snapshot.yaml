@@ -1,0 +1,17 @@
+tap: tap-lighthouse
+stream: strategy-snapshot
+start_url: https://app.mylighthouse.com/hotel/{hotel_id}/day-by-day/strategy?startDate={start_date}&endDate={end_date}
+variables:
+  hotel_id: "202158"
+  start_date: "2026-09-15"
+  end_date: "2027-09-14"
+hints:
+  - Same Spider iframe pattern as existing strategy-snapshot stream
+success:
+  min_records: 30
+  required_fields:
+    - date
+  not_login_page: true
+budget:
+  max_steps: 20
+  max_minutes: 15
