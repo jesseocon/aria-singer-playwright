@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ cookiecutter.tap_id }}"
+version = "0.1.0"
+description = "Singer tap for {{ cookiecutter.source_name }} via Playwright."
+readme = "README.md"
+authors = [{ name = "{{ cookiecutter.admin_name }}", email = "{{ cookiecutter.admin_email }}" }]
+requires-python = ">=3.10"
+dependencies = [
+    "singer-playwright",
+    "singer-sdk~=0.54.5",
+    "typing-extensions>=4.5.0; python_version < '3.13'",
+]
+
+[project.scripts]
+{{ cookiecutter.tap_id }} = "{{ cookiecutter.library_name }}.tap:Tap{{ cookiecutter.source_name }}.cli"
+
+[dependency-groups]
+test = [
+    "pytest>=9",
+    "singer-sdk[testing]",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

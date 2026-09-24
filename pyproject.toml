@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "singer-playwright"
+version = "0.1.0"
+description = "Shared Playwright + Singer SDK base classes for browser-backed taps."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.52.0",
+    "pyyaml>=6.0",
+    "singer-sdk~=0.54.5",
+    "typing-extensions>=4.5.0; python_version < '3.13'",
+]
+
+[project.scripts]
+singer-playwright = "singer_playwright.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "singer-sdk[testing]",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra"]

@@ -1,0 +1,53 @@
+send_anonymous_usage_stats: false
+project_id: {{ cookiecutter.repo_name }}
+default_environment: local
+requires_meltano: '>=4.0'
+venv:
+  backend: uv
+
+environments:
+- name: local
+  config:
+    plugins:
+      extractors:
+      - name: {{ cookiecutter.tap_id }}
+        config:
+          storage_state_path: storage_state.json
+
+plugins:
+  extractors:
+  - name: {{ cookiecutter.tap_id }}
+    namespace: {{ cookiecutter.library_name }}
+    pip_url: -e ./packages/{{ cookiecutter.tap_id }}
+    capabilities:
+    - state
+    - catalog
+    - discover
+    - about
+    - stream-maps
+    - structured-logging
+    settings_group_validation:
+    - [storage_state_path]
+    settings:
+    - name: storage_state_path
+      label: Storage State Path
+      description: Path to Playwright storage_state.json (saved after manual login)
+      sensitive: true
+    - name: base_url
+      kind: string
+      value: {{ cookiecutter.base_url }}
+    - name: session_probe_url
+      kind: string
+      value: {{ cookiecutter.session_probe_url }}
+    - name: headless
+      kind: boolean
+      value: true
+    - name: rate_limit_seconds
+      kind: number
+      value: 5.0
+  loaders:
+  - name: target-jsonl
+    variant: andyh1203
+    pip_url: target-jsonl
+    config:
+      destination_path: output

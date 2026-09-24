@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "brief": {
+    "tap": "tap-lighthouse",
+    "stream": "strategy-snapshot",
+    "start_url": "https://app.mylighthouse.com/hotel/{hotel_id}/day-by-day/strategy?startDate={start_date}&endDate={end_date}",
+    "variables": {
+      "hotel_id": "202158",
+      "start_date": "2026-09-15",
+      "end_date": "2027-09-14",
+      "as_of_date": "2026-09-15"
+    },
+    "success": {
+      "min_records": 30,
+      "required_fields": ["date"],
+      "not_login_page": true
+    }
+  },
+  "steps": [
+    {
+      "type": "goto",
+      "url": "https://app.mylighthouse.com/hotel/202158/day-by-day/strategy?startDate=2026-09-15&endDate=2027-09-14",
+      "wait_until": "domcontentloaded"
+    },
+    {
+      "type": "wait_for_frame",
+      "url_pattern": "spider\\.kriyarevgen\\.com/dashboards/day-by-day",
+      "timeout_ms": 30000
+    },
+    {
+      "type": "frame_goto",
+      "url_pattern": "spider\\.kriyarevgen\\.com/dashboards/day-by-day",
+      "query_params": {
+        "asof": "2026-09-15",
+        "pickupFrom": "2026-09-15"
+      }
+    },
+    {
+      "type": "wait",
+      "frame_url_pattern": "spider\\.kriyarevgen\\.com/dashboards/day-by-day",
+      "timeout_ms": 90000,
+      "poll_ms": 2000,
+      "script": "() => { const table = document.querySelector('table.analytics.day-by-day'); const asOf = document.querySelector('[data-testid=\"as-of-date\"], .as-of-date'); return !!asOf || (!!table && table.querySelectorAll('tbody tr').length > 0); }",
+      "error_message": "Timed out waiting for Day by day table inside Spider iframe"
+    },
+    {
+      "type": "wait",
+      "frame_url_pattern": "spider\\.kriyarevgen\\.com/dashboards/day-by-day",
+      "timeout_ms": 45000,
+      "poll_ms": 1000,
+      "script": "() => { const table = document.querySelector('table.analytics.day-by-day'); if (!table) return false; const loading = document.querySelector('.loading-indicator, .spinner, [class*=\"loading\"]'); if (loading && loading.offsetParent !== null) return false; const rows = table.querySelectorAll('tbody tr'); if (rows.length < 5) return false; const cells = rows[0]?.querySelectorAll('td') ?? []; return cells.length > 5; }",
+      "error_message": "Timed out waiting for Spider table data to finish loading"
+    }
+  ],
+  "extract": {
+    "type": "table",
+    "selector": "table.analytics.day-by-day",
+    "frame_url_pattern": "spider\\.kriyarevgen\\.com/dashboards/day-by-day",
+    "limit": 500
+  },
+  "sample_records": [
+    {
+      "date": "9/15/25 Mon",
+      "on_the_books": "100",
+      "revenue": "10000"
+    }
+  ],
+  "inferred_schema": {
+    "type": "object",
+    "properties": {
+      "record_hash": { "type": ["string"] },
+      "date": { "type": ["string", "null"] },
+      "on_the_books": { "type": ["string", "null"] },
+      "revenue": { "type": ["string", "null"] }
+    },
+    "additionalProperties": true
+  }
+}

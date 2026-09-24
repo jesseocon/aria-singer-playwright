@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+uv.lock
+
+# Secrets and session artifacts
+.env
+.env.*
+!.env.example
+storage_state.json
+**/storage_state.json
+
+# Workshop / scrape output
+.workshop/
+workshop-runs/
+workshop-recipes/
+output/
+*.log
+*.csv
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,33 @@
+[project]
+name = "{{ cookiecutter.repo_name }}"
+version = "0.1.0"
+description = "Meltano project for {{ cookiecutter.source_name }} (Playwright tap)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "{{ cookiecutter.tap_id }}",
+    "meltano>=4.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "packages/{{ cookiecutter.tap_id }}",
+]
+
+[tool.uv.sources]
+{% if cookiecutter.singer_playwright_install == "path" -%}
+singer-playwright = { path = "{{ cookiecutter.singer_playwright_local_path }}", editable = true }
+{% else -%}
+singer-playwright = { git = "{{ cookiecutter.singer_playwright_git_url }}", rev = "{{ cookiecutter.singer_playwright_rev }}" }
+{% endif -%}
+{{ cookiecutter.tap_id }} = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "singer-sdk[testing]",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/{{ cookiecutter.tap_id }}/tests"]
+addopts = ["-ra"]

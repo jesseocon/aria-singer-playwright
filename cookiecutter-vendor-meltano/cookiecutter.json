@@ -1,0 +1,17 @@
+{
+  "vendor_slug": "example",
+  "repo_name": "aria-example",
+  "source_name": "Example",
+  "admin_name": "Jesse Ocon",
+  "admin_email": "jesse.ocon@growthnirvana.com",
+  "tap_id": "tap-example",
+  "library_name": "tap_example",
+  "base_url": "https://example.com",
+  "session_probe_url": "https://example.com/",
+  "login_url": "https://example.com/login",
+  "singer_playwright_install": ["path", "git"],
+  "singer_playwright_local_path": "../aria-singer-playwright",
+  "singer_playwright_git_url": "https://github.com/YOUR_ORG/aria-singer-playwright.git",
+  "singer_playwright_rev": "v0.1.0",
+  "_copy_without_render": []
+}
