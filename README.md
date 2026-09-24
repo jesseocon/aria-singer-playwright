@@ -39,13 +39,18 @@ uv run python -m singer_playwright auth --url https://example.com/login --out st
 
 ## Workshop (scraper iteration)
 
+The workshop CLI lives in this package. **Site-specific** DOM helpers belong in the Meltano project, e.g. `aria-lighthouse/workshop/page_scripts.js`.
+
+From a tap project root (Lighthouse):
+
 ```bash
-uv run python -m singer_playwright workshop start --storage-state storage_state.json --detach
-uv run python -m singer_playwright workshop observe
-uv run python -m singer_playwright workshop stop
+./scripts/scraper.sh start --storage-state storage_state.json --detach
+./scripts/scraper.sh observe
 ```
 
-See [`.cursor/skills/playwright-scraper-workshop/SKILL.md`](.cursor/skills/playwright-scraper-workshop/SKILL.md).
+Or set `MELTANO_PROJECT_ROOT` / `SINGER_PLAYWRIGHT_WORKSHOP_SCRIPTS` before `uv run python -m singer_playwright workshop …`.
+
+See Lighthouse `.cursor/skills/playwright-scraper-workshop/SKILL.md`.
 
 ## New vendor Meltano repo
 

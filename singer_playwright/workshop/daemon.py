@@ -7,7 +7,10 @@ import os
 import signal
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any
+
+from singer_playwright.workshop.observe import clear_workshop_scripts_cache
 
 from singer_playwright.workshop.recipe import RecipeExtract
 from singer_playwright.workshop.runs import clear_session_file, write_session_file
@@ -40,6 +43,8 @@ class WorkshopDaemon:
         actual_host, actual_port = self.httpd.server_address
         self.host = actual_host
         self.port = actual_port
+        project_root = str(Path.cwd().resolve())
+        os.environ.setdefault("MELTANO_PROJECT_ROOT", project_root)
         session_path = write_session_file(
             host=self.host,
             port=self.port,
@@ -47,6 +52,7 @@ class WorkshopDaemon:
             run_id=self.session.run_id,
             run_dir=str(self.session.run_dir),
             storage_state_path=self.session.storage_state_path,
+            project_root=project_root,
         )
         return {
             "ok": True,
@@ -194,6 +200,7 @@ def run_daemon(
             return {"ok": True, "detached": True, "pid": pid}
         os.setsid()
 
+    clear_workshop_scripts_cache()
     daemon = WorkshopDaemon(
         storage_state_path=storage_state_path,
         headless=headless,

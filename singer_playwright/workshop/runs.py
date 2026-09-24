@@ -53,6 +53,7 @@ def write_session_file(
     run_id: str,
     run_dir: str,
     storage_state_path: str,
+    project_root: str | None = None,
 ) -> Path:
     session_dir = default_session_dir()
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -66,6 +67,7 @@ def write_session_file(
             "run_id": run_id,
             "run_dir": run_dir,
             "storage_state_path": storage_state_path,
+            "project_root": project_root or str(Path.cwd().resolve()),
             "started_at": datetime.now(UTC).isoformat(),
         },
     )
