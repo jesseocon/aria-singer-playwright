@@ -28,6 +28,9 @@ def handle_workshop(args: argparse.Namespace) -> None:
             host=args.host,
             port=args.port,
             detach=args.detach,
+            capture_types=tuple(t.strip() for t in args.capture_types.split(",") if t.strip())
+            if args.capture_types
+            else None,
         )
         return
 
@@ -133,6 +136,10 @@ def handle_workshop(args: argparse.Namespace) -> None:
         msg = f"Unknown recipe command: {args.recipe_command}"
         raise SystemExit(msg)
 
+    if command == "network":
+        _handle_network(args)
+        return
+
     if command == "codegen":
         manifest = compile_recipe_file(
             args.recipe,
@@ -146,6 +153,56 @@ def handle_workshop(args: argparse.Namespace) -> None:
     raise SystemExit(msg)
 
 
+def _compact_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "path": catalog.get("path"),
+        "call_count": catalog.get("call_count"),
+        "since_mark": catalog.get("since_mark"),
+        "endpoints": [
+            {
+                "endpoint": e["endpoint"],
+                "count": e["count"],
+                "statuses": e["statuses"],
+                "response_bytes": e["response_bytes"],
+                "query_params": sorted(e["query_params"]),
+                "after_marks": e["after_marks"],
+                "seqs": e["seqs"][:8],
+            }
+            for e in catalog.get("endpoints", [])
+        ],
+    }
+
+
+def _handle_network(args: argparse.Namespace) -> None:
+    sub = args.network_command
+    if sub == "mark":
+        _print_json(workshop_client.network_mark(args.label))
+        return
+    if sub == "catalog":
+        response = workshop_client.network_catalog(since_mark=args.since_mark, host_pattern=args.host_pattern)
+        catalog = response["result"]
+        _print_json(catalog if args.full else _compact_catalog(catalog))
+        return
+    if sub == "show":
+        _print_json(workshop_client.network_show(args.seq, preview_chars=args.preview_chars))
+        return
+    if sub == "replay":
+        _print_json(
+            workshop_client.network_replay(
+                args.seq,
+                query=json.loads(args.query) if args.query else None,
+                json_patch=json.loads(args.json_patch) if args.json_patch else None,
+                body=args.body,
+                url=args.url,
+                method=args.method,
+                preview_chars=args.preview_chars,
+            ),
+        )
+        return
+    msg = f"Unknown network command: {sub}"
+    raise SystemExit(msg)
+
+
 def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     workshop = subparsers.add_parser("workshop", help="AI-forward scraper workshop")
     workshop_sub = workshop.add_subparsers(dest="workshop_command", required=True)
@@ -156,6 +213,11 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     start.add_argument("--port", type=int, default=18742)
     start.add_argument("--headed", action="store_true", help="Run browser headed")
     start.add_argument("--detach", action="store_true", help="Fork daemon to background")
+    start.add_argument(
+        "--capture-types",
+        default=None,
+        help="Comma-separated Playwright resource types to record (default: xhr,fetch,eventsource)",
+    )
     start.set_defaults(workshop_command="start")
 
     stop = workshop_sub.add_parser("stop", help="Stop workshop daemon")
@@ -222,6 +284,31 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     recipe_replay.add_argument("--brief", default=None)
     recipe_replay.add_argument("--headed", action="store_true")
     recipe_replay.set_defaults(workshop_command="recipe", recipe_command="replay")
+
+    network = workshop_sub.add_parser("network", help="Catalog and replay captured page API calls")
+    network_sub = network.add_subparsers(dest="network_command", required=True)
+
+    network_mark = network_sub.add_parser("mark", help="Insert a labelled marker into the capture log")
+    network_mark.add_argument("--label", required=True)
+
+    network_catalog = network_sub.add_parser("catalog", help="Group captured calls by endpoint")
+    network_catalog.add_argument("--since-mark", default=None, help="Only calls after the last mark with this label")
+    network_catalog.add_argument("--host-pattern", default=None, help="Regex filter on request host")
+    network_catalog.add_argument("--full", action="store_true", help="Print shapes, frames, and samples")
+
+    network_show = network_sub.add_parser("show", help="Show one captured call with a body preview")
+    network_show.add_argument("--seq", type=int, required=True)
+    network_show.add_argument("--preview-chars", type=int, default=2000)
+
+    network_replay = network_sub.add_parser("replay", help="Re-issue a captured call with overrides")
+    network_replay.add_argument("--seq", type=int, required=True)
+    network_replay.add_argument("--query", default=None, help="JSON object of query param overrides (null removes)")
+    network_replay.add_argument("--json-patch", default=None, help="JSON object of dotted-path body overrides")
+    network_replay.add_argument("--body", default=None, help="Replacement raw request body")
+    network_replay.add_argument("--url", default=None, help="Replacement URL")
+    network_replay.add_argument("--method", default=None)
+    network_replay.add_argument("--preview-chars", type=int, default=1000)
+    network.set_defaults(workshop_command="network")
 
     codegen = workshop_sub.add_parser("codegen", help="Compile recipe into stream scaffolding")
     codegen.add_argument("--recipe", required=True)

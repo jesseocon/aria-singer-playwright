@@ -18,6 +18,21 @@ def test_start_requires_storage_state(tmp_path: Path) -> None:
         runtime.start()
 
 
+@patch("singer_playwright.browser.sync_playwright")
+def test_start_without_storage_state_omits_cookies(mock_sync_playwright: MagicMock) -> None:
+    playwright = MagicMock()
+    browser = MagicMock()
+    mock_sync_playwright.return_value.start.return_value = playwright
+    playwright.chromium.launch.return_value = browser
+    browser.new_context.return_value = MagicMock()
+
+    runtime = BrowserRuntime(BrowserConfig(storage_state_path=None))
+    runtime.start()
+
+    assert "storage_state" not in browser.new_context.call_args.kwargs
+    runtime.stop()
+
+
 def test_teardown_is_safe_without_start() -> None:
     runtime = BrowserRuntime(BrowserConfig(storage_state_path="unused.json"))
     runtime.stop()
@@ -43,6 +58,7 @@ def test_start_launches_browser(mock_sync_playwright: MagicMock, tmp_path: Path)
 
     playwright.chromium.launch.assert_called_once()
     browser.new_context.assert_called_once()
+    assert browser.new_context.call_args.kwargs["storage_state"] == str(state_file)
     context.new_page.assert_called_once()
 
     runtime.stop()

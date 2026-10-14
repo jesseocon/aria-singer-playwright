@@ -43,8 +43,8 @@ plugins:
       kind: boolean
       value: true
     - name: rate_limit_seconds
-      kind: number
-      value: 5.0
+      kind: integer
+      value: 5
   loaders:
   - name: target-jsonl
     variant: andyh1203

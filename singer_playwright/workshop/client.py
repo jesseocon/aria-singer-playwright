@@ -54,5 +54,21 @@ def recipe_save(**kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
     return _request("POST", "/recipe/save", kwargs)
 
 
+def network_mark(label: str) -> dict[str, Any]:
+    return _request("POST", "/network/mark", {"label": label})
+
+
+def network_catalog(**kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
+    return _request("POST", "/network/catalog", kwargs)
+
+
+def network_show(seq: int, *, preview_chars: int = 2000) -> dict[str, Any]:
+    return _request("POST", "/network/show", {"seq": seq, "preview_chars": preview_chars})
+
+
+def network_replay(seq: int, **kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
+    return _request("POST", "/network/replay", {"seq": seq, **kwargs})
+
+
 def stop() -> dict[str, Any]:
     return _request("POST", "/stop", {})

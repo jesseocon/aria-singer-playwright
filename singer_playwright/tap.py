@@ -9,6 +9,7 @@ from singer_sdk import Tap
 from singer_sdk import typing as th
 
 from singer_playwright.browser import BrowserConfig, BrowserRuntime
+from singer_playwright.login import apply_credentials
 from singer_playwright.session import probe_session
 
 if sys.version_info >= (3, 12):
@@ -62,6 +63,34 @@ class PlaywrightTap(Tap):
             description="Minimum seconds between page actions",
             default=5.0,
         ),
+        th.Property(
+            "auth_method",
+            th.StringType(nullable=False),
+            allowed_values=["storage_state", "password"],
+            title="Auth Method",
+            description="storage_state replays a saved login. password types credentials in this browser.",
+            default="storage_state",
+        ),
+        th.Property(
+            "login_url",
+            th.StringType(nullable=True),
+            title="Login URL",
+            description="Page to open when auth_method is password",
+        ),
+        th.Property(
+            "username",
+            th.StringType(nullable=True),
+            secret=True,
+            title="Username",
+            description="Site username. Used when auth_method is password.",
+        ),
+        th.Property(
+            "password",
+            th.StringType(nullable=True),
+            secret=True,
+            title="Password",
+            description="Site password. Used when auth_method is password.",
+        ),
     ).to_dict()
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -71,6 +100,11 @@ class PlaywrightTap(Tap):
 
     def _ensure_browser_started(self) -> None:
         if self._browser_runtime is not None:
+            return
+
+        auth_method = self.config.get("auth_method", "storage_state")
+        if auth_method == "password":
+            self._start_with_password()
             return
 
         config = BrowserConfig(
@@ -85,6 +119,27 @@ class PlaywrightTap(Tap):
                 self.config.get("session_probe_url") or self.config["base_url"],
             )
             self._session_verified = True
+
+    def _start_with_password(self) -> None:
+        username = self.config.get("username")
+        password = self.config.get("password")
+        login_url = self.config.get("login_url")
+        if not username or not password or not login_url:
+            msg = "auth_method password requires username, password, and login_url"
+            raise ValueError(msg)
+        config = BrowserConfig(
+            storage_state_path=None,
+            headless=bool(self.config.get("headless", True)),
+        )
+        self._browser_runtime = BrowserRuntime(config)
+        self._browser_runtime.start()
+        apply_credentials(
+            self._browser_runtime.page,
+            username=str(username),
+            password=str(password),
+            login_url=str(login_url),
+        )
+        self._session_verified = True
 
     @property
     def browser(self) -> BrowserRuntime:

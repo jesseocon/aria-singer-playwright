@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,11 +15,19 @@ if TYPE_CHECKING:
     from playwright.sync_api import Playwright
 
 
+def chromium_launch_args() -> list[str]:
+    """Flags Chromium needs in Cloud Run. A virtual display still counts as headed."""
+    args = ["--disable-dev-shm-usage"]
+    if os.environ.get("CLOUD_RUN_JOB") or os.environ.get("K_SERVICE"):
+        args.extend(["--no-sandbox", "--disable-gpu"])
+    return args
+
+
 @dataclass
 class BrowserConfig:
     """Runtime browser settings."""
 
-    storage_state_path: str
+    storage_state_path: str | None = None
     headless: bool = True
     viewport_width: int = 1600
     viewport_height: int = 1000
@@ -49,23 +58,31 @@ class BrowserRuntime:
         return self._page
 
     def start(self) -> None:
-        path = Path(self._config.storage_state_path).expanduser()
-        if not path.is_file():
-            msg = (
-                f"storage_state not found at {path}. "
-                "Run `python -m singer_playwright auth` first."
-            )
-            raise FileNotFoundError(msg)
+        storage_state: str | None = None
+        if self._config.storage_state_path:
+            path = Path(self._config.storage_state_path).expanduser()
+            if not path.is_file():
+                msg = (
+                    f"storage_state not found at {path}. "
+                    "Run `python -m singer_playwright auth` first."
+                )
+                raise FileNotFoundError(msg)
+            storage_state = str(path)
 
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(headless=self._config.headless)
-        self._context = self._browser.new_context(
-            storage_state=str(path),
-            viewport={
+        self._browser = self._playwright.chromium.launch(
+            headless=self._config.headless,
+            args=chromium_launch_args(),
+        )
+        context_options: dict[str, object] = {
+            "viewport": {
                 "width": self._config.viewport_width,
                 "height": self._config.viewport_height,
             },
-        )
+        }
+        if storage_state is not None:
+            context_options["storage_state"] = storage_state
+        self._context = self._browser.new_context(**context_options)
         self._page = self._context.new_page()
 
     def stop(self) -> None:

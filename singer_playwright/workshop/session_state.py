@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from singer_playwright.browser import BrowserConfig, BrowserRuntime
 from singer_playwright.session import assert_authenticated
+from singer_playwright.workshop.network import DEFAULT_RESOURCE_TYPES, NetworkRecorder
 from singer_playwright.workshop.observe import extract_table, observe_page, resolve_target
 from singer_playwright.workshop.runs import append_step_artifact, create_run_dir, write_json
 from singer_playwright.workshop.recipe import RecipeExtract, build_recipe_from_steps
@@ -25,6 +26,8 @@ class WorkshopSessionState:
     step_counter: int = 0
     steps: list[dict[str, Any]] = field(default_factory=list)
     xhr_log: list[dict[str, Any]] = field(default_factory=list)
+    capture_types: tuple[str, ...] = tuple(sorted(DEFAULT_RESOURCE_TYPES))
+    network: NetworkRecorder | None = None
     runtime: BrowserRuntime | None = None
 
     def start(self) -> dict[str, Any]:
@@ -42,7 +45,32 @@ class WorkshopSessionState:
         self.runtime = BrowserRuntime(config)
         self.runtime.start()
         self._attach_xhr_capture()
+        self.network = NetworkRecorder(self.run_dir / "network", resource_types=self.capture_types)
+        self.network.attach(self.runtime.context)
         return {"ok": True, "run_id": self.run_id, "run_dir": str(self.run_dir)}
+
+    def _require_network(self) -> NetworkRecorder:
+        if self.network is None:
+            msg = "Workshop session not started"
+            raise RuntimeError(msg)
+        return self.network
+
+    def network_mark(self, label: str) -> dict[str, Any]:
+        mark = self._require_network().mark(label)
+        self._record_step({"type": "network_mark", "label": label})
+        return mark
+
+    def network_catalog(self, *, since_mark: str | None = None, host_pattern: str | None = None) -> dict[str, Any]:
+        return self._require_network().catalog(since_mark=since_mark, host_pattern=host_pattern)
+
+    def network_show(self, seq: int, *, preview_chars: int = 2000) -> dict[str, Any]:
+        return self._require_network().show(seq, preview_chars=preview_chars)
+
+    def network_replay(self, seq: int, **kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
+        assert self.runtime is not None
+        result = self._require_network().replay(self.runtime.context.request, seq, **kwargs)
+        self._record_step({"type": "network_replay", "replay_of": seq, "query": kwargs.get("query")})
+        return result
 
     def stop(self) -> dict[str, Any]:
         if self.runtime is not None:

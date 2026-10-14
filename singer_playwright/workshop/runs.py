@@ -85,7 +85,15 @@ def load_session_file() -> dict[str, Any]:
     return read_json(session_path)
 
 
-def clear_session_file() -> None:
+def clear_session_file(pid: int | None = None) -> None:
+    """Remove the session file; with ``pid``, only if it still belongs to that daemon."""
     session_path = default_session_dir() / "session.json"
-    if session_path.is_file():
-        session_path.unlink()
+    if not session_path.is_file():
+        return
+    if pid is not None:
+        try:
+            if read_json(session_path).get("pid") != pid:
+                return
+        except (OSError, ValueError):
+            return
+    session_path.unlink()
