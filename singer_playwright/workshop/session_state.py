@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -11,6 +12,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from singer_playwright.browser import BrowserConfig, BrowserRuntime
 from singer_playwright.session import assert_authenticated
+from singer_playwright.workshop.downloads import DownloadRecorder
 from singer_playwright.workshop.network import DEFAULT_RESOURCE_TYPES, NetworkRecorder
 from singer_playwright.workshop.observe import extract_table, observe_page, resolve_target
 from singer_playwright.workshop.runs import append_step_artifact, create_run_dir, write_json
@@ -28,6 +30,7 @@ class WorkshopSessionState:
     xhr_log: list[dict[str, Any]] = field(default_factory=list)
     capture_types: tuple[str, ...] = tuple(sorted(DEFAULT_RESOURCE_TYPES))
     network: NetworkRecorder | None = None
+    downloads: DownloadRecorder | None = None
     runtime: BrowserRuntime | None = None
 
     def start(self) -> dict[str, Any]:
@@ -47,6 +50,8 @@ class WorkshopSessionState:
         self._attach_xhr_capture()
         self.network = NetworkRecorder(self.run_dir / "network", resource_types=self.capture_types)
         self.network.attach(self.runtime.context)
+        self.downloads = DownloadRecorder(self.run_dir / "downloads")
+        self.downloads.attach(self.runtime.context)
         return {"ok": True, "run_id": self.run_id, "run_dir": str(self.run_dir)}
 
     def _require_network(self) -> NetworkRecorder:
@@ -54,6 +59,25 @@ class WorkshopSessionState:
             msg = "Workshop session not started"
             raise RuntimeError(msg)
         return self.network
+
+    def _require_downloads(self) -> DownloadRecorder:
+        if self.downloads is None:
+            msg = "Workshop session not started"
+            raise RuntimeError(msg)
+        return self.downloads
+
+    def list_downloads(self) -> dict[str, Any]:
+        return self._require_downloads().list()
+
+    def save_storage_state(self, path: str | None = None) -> dict[str, Any]:
+        if self.runtime is None:
+            msg = "Workshop session not started"
+            raise RuntimeError(msg)
+        out = Path(path or self.storage_state_path).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        self.runtime.context.storage_state(path=str(out))
+        os.chmod(out, 0o600)
+        return {"ok": True, "path": str(out)}
 
     def network_mark(self, label: str) -> dict[str, Any]:
         mark = self._require_network().mark(label)
@@ -169,6 +193,22 @@ class WorkshopSessionState:
             )
             target.locator(str(params["selector"])).first.fill(str(params["value"]))
             step = {"type": "fill", **params}
+        elif action == "download":
+            recorder = self._require_downloads()
+            recorder.flush()
+            timeout_ms = int(params.get("timeout_ms", 60_000))
+            if params.get("selector"):
+                target = resolve_target(
+                    self.page,
+                    frame_index=params.get("frame_index"),
+                    frame_url_pattern=params.get("frame_url_pattern"),
+                )
+                target.locator(str(params["selector"])).first.click(timeout=timeout_ms)
+            name = params.get("value")
+            saved = recorder.wait_for_next(self.page, timeout_ms=timeout_ms, name=str(name) if name else None)
+            step = {"type": "download", **params}
+            self._record_step(step, {"download": saved})
+            return {"ok": True, "action": action, "params": params, "download": saved}
         elif action == "wait":
             self.page.wait_for_timeout(int(params.get("ms", 1000)))
             step = {"type": "sleep", **params}

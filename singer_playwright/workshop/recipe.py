@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +13,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from singer_playwright.browser import BrowserConfig, BrowserRuntime
 from singer_playwright.session import assert_authenticated
 from singer_playwright.workshop.brief import Brief, evaluate_success, load_brief
+from singer_playwright.workshop.downloads import DownloadRecorder
 from singer_playwright.workshop.schema import infer_schema_from_records
 from singer_playwright.workshop.observe import extract_table, observe_page
 from singer_playwright.workshop.runs import read_json, write_json
@@ -164,6 +166,18 @@ def execute_step(page: Page, step: dict[str, Any]) -> dict[str, Any]:
         frame_pattern = step.get("frame_url_pattern")
         target: Page | Frame = _find_frame(page, frame_pattern) if frame_pattern else page
         target.locator(str(step["selector"])).first.fill(str(step["value"]))
+        return result
+
+    if step_type == "download":
+        timeout_ms = int(step.get("timeout_ms", 60_000))
+        recorder = DownloadRecorder(Path(tempfile.mkdtemp(prefix="recipe-downloads-")))
+        recorder.attach(page.context)
+        if step.get("selector"):
+            frame_pattern = step.get("frame_url_pattern")
+            target = _find_frame(page, frame_pattern) if frame_pattern else page
+            target.locator(str(step["selector"])).first.click(timeout=timeout_ms)
+        name = step.get("value")
+        result["download"] = recorder.wait_for_next(page, timeout_ms=timeout_ms, name=str(name) if name else None)
         return result
 
     if step_type == "sleep":

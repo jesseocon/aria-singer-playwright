@@ -89,6 +89,14 @@ def handle_workshop(args: argparse.Namespace) -> None:
         _print_json(workshop_client.screenshot(name=args.name))
         return
 
+    if command == "downloads":
+        _print_json(workshop_client.downloads())
+        return
+
+    if command == "save-storage-state":
+        _print_json(workshop_client.save_storage_state(args.out))
+        return
+
     if command == "evaluate":
         brief = load_brief(args.brief)
         records = json.loads(args.records)
@@ -235,9 +243,12 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     goto.set_defaults(workshop_command="goto")
 
     act = workshop_sub.add_parser("act", help="Perform a page action")
-    act.add_argument("action", choices=["click", "fill", "wait", "wait_for_frame", "frame_goto", "assert_authenticated"])
+    act.add_argument(
+        "action",
+        choices=["click", "fill", "download", "wait", "wait_for_frame", "frame_goto", "assert_authenticated"],
+    )
     act.add_argument("--selector", default=None)
-    act.add_argument("--value", default=None)
+    act.add_argument("--value", default=None, help="fill: text to enter; download: filename to save as")
     act.add_argument("--url-pattern", default=None)
     act.add_argument("--frame-url-pattern", default=None)
     act.add_argument("--frame-index", type=int, default=None)
@@ -253,6 +264,16 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     extract.add_argument("--frame-url-pattern", default=None)
     extract.add_argument("--limit", type=int, default=50)
     extract.set_defaults(workshop_command="extract")
+
+    downloads = workshop_sub.add_parser("downloads", help="List files downloaded in this session")
+    downloads.set_defaults(workshop_command="downloads")
+
+    save_state = workshop_sub.add_parser(
+        "save-storage-state",
+        help="Write the live browser session (cookies/localStorage) to a storage_state file",
+    )
+    save_state.add_argument("--out", default=None, help="Defaults to the daemon's --storage-state path")
+    save_state.set_defaults(workshop_command="save-storage-state")
 
     screenshot = workshop_sub.add_parser("screenshot", help="Capture screenshot artifact")
     screenshot.add_argument("--name", default="screenshot")

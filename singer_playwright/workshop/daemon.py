@@ -211,6 +211,16 @@ def _build_handler(session: WorkshopSessionState) -> type[BaseHTTPRequestHandler
                     _json_response(self, 200, {"ok": True, "result": result})
                     return
 
+                if self.path == "/downloads":
+                    result = session.list_downloads()
+                    _json_response(self, 200, {"ok": True, "result": result})
+                    return
+
+                if self.path == "/storage-state/save":
+                    result = session.save_storage_state(payload.get("path"))
+                    _json_response(self, 200, {"ok": True, "result": result})
+                    return
+
                 if self.path == "/stop":
                     session.stop()
                     clear_session_file(pid=os.getpid())

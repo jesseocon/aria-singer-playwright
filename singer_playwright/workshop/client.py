@@ -70,5 +70,13 @@ def network_replay(seq: int, **kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
     return _request("POST", "/network/replay", {"seq": seq, **kwargs})
 
 
+def downloads() -> dict[str, Any]:
+    return _request("POST", "/downloads", {})
+
+
+def save_storage_state(path: str | None = None) -> dict[str, Any]:
+    return _request("POST", "/storage-state/save", {"path": path})
+
+
 def stop() -> dict[str, Any]:
     return _request("POST", "/stop", {})
