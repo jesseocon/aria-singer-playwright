@@ -32,6 +32,8 @@ class WorkshopSessionState:
     network: NetworkRecorder | None = None
     downloads: DownloadRecorder | None = None
     runtime: BrowserRuntime | None = None
+    fresh: bool = False
+    active_page: Any = None
 
     def start(self) -> dict[str, Any]:
         if self.runtime is not None:
@@ -41,12 +43,14 @@ class WorkshopSessionState:
         self.run_dir = run_dir
         self.run_id = run_id
 
+        # fresh starts logged out; storage_state_path is then only where a login gets saved.
         config = BrowserConfig(
-            storage_state_path=self.storage_state_path,
+            storage_state_path=None if self.fresh else self.storage_state_path,
             headless=self.headless,
         )
         self.runtime = BrowserRuntime(config)
         self.runtime.start()
+        self._track_tabs(self.runtime.context, self.runtime.page)
         self._attach_xhr_capture()
         self.network = NetworkRecorder(self.run_dir / "network", resource_types=self.capture_types)
         self.network.attach(self.runtime.context)
@@ -107,7 +111,64 @@ class WorkshopSessionState:
         if self.runtime is None:
             msg = "Workshop session not started"
             raise RuntimeError(msg)
+        if self.active_page is not None and not self.active_page.is_closed():
+            return self.active_page
+        open_pages = [p for p in self.runtime.context.pages if not p.is_closed()]
+        if open_pages:
+            self.active_page = open_pages[-1]
+            return self.active_page
         return self.runtime.page
+
+    def _track_tabs(self, context: Any, first_page: Any) -> None:  # noqa: ANN401
+        """A tab opened by a click (SSO hand-offs, app launchers) becomes the active page."""
+        self.active_page = first_page
+
+        def on_page(page: Any) -> None:  # noqa: ANN401
+            self.active_page = page
+            try:
+                opener = page.opener()
+                opener_url = opener.url if opener is not None else None
+            except Exception:  # noqa: BLE001
+                opener_url = None
+            self._record_step({"type": "tab_opened", "url": page.url, "opener_url": opener_url})
+
+        context.on("page", on_page)
+
+    def tabs(self) -> dict[str, Any]:
+        if self.runtime is None:
+            msg = "Workshop session not started"
+            raise RuntimeError(msg)
+        active = self.page
+        out = []
+        for index, page in enumerate(self.runtime.context.pages):
+            try:
+                title = page.title()
+            except Exception:  # noqa: BLE001 - mid-navigation
+                title = None
+            out.append({"index": index, "url": page.url, "title": title, "active": page is active})
+        return {"tabs": out}
+
+    def select_tab(self, index: int) -> dict[str, Any]:
+        if self.runtime is None:
+            msg = "Workshop session not started"
+            raise RuntimeError(msg)
+        pages = self.runtime.context.pages
+        if not 0 <= index < len(pages):
+            msg = f"No tab {index}; {len(pages)} open"
+            raise ValueError(msg)
+        self.active_page = pages[index]
+        self.active_page.bring_to_front()
+        self._record_step({"type": "select_tab", "index": index, "url": self.active_page.url})
+        return self.tabs()
+
+    def pump(self) -> None:
+        """Let Playwright deliver queued events while the daemon is idle (manual browsing)."""
+        if self.runtime is None:
+            return
+        try:
+            self.page.wait_for_timeout(1)
+        except Exception:  # noqa: BLE001 - page or browser closed under us
+            return
 
     def _attach_xhr_capture(self) -> None:
         assert self.runtime is not None

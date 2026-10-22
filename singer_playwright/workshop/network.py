@@ -276,8 +276,16 @@ class NetworkRecorder:
                         "response_headers": redact_headers(headers),
                     },
                 )
+                if 300 <= response.status < 400 and headers.get("location"):
+                    entry["redirect_to"] = redact_url(headers["location"])
+                body = None
                 if TEXT_CONTENT_RE.search(content_type) or not content_type:
-                    body = response.body()
+                    try:
+                        body = response.body()
+                    except Exception as exc:  # noqa: BLE001 - redirects and navigated-away pages
+                        # Keep the call: SSO hops are redirects, and the hop itself is the evidence.
+                        entry["response_body_error"] = str(exc).splitlines()[0]
+                if body is not None:
                     entry["response_bytes"] = len(body)
                     if len(body) <= self.max_body_bytes:
                         entry["response_body_file"] = self._write_body(

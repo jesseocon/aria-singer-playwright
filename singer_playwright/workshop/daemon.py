@@ -18,6 +18,23 @@ from singer_playwright.workshop.runs import clear_session_file, write_session_fi
 from singer_playwright.workshop.session_state import WorkshopSessionState
 
 
+PUMP_SECONDS = 0.25
+
+
+class _PumpingHTTPServer(HTTPServer):
+    """Playwright's sync API only delivers events inside a Playwright call.
+
+    Between requests, pump the browser so network and tab events from manual
+    browsing are recorded as they happen, not when the next command arrives.
+    """
+
+    session: WorkshopSessionState | None = None
+
+    def service_actions(self) -> None:
+        if self.session is not None:
+            self.session.pump()
+
+
 class WorkshopDaemon:
     def __init__(
         self,
@@ -28,6 +45,7 @@ class WorkshopDaemon:
         port: int = 0,
         run_id: str = "",
         capture_types: tuple[str, ...] | None = None,
+        fresh: bool = False,
     ) -> None:
         self.host = host
         self.port = port
@@ -35,6 +53,7 @@ class WorkshopDaemon:
             storage_state_path=storage_state_path,
             headless=headless,
             run_id=run_id,
+            fresh=fresh,
         )
         if capture_types:
             self.session.capture_types = capture_types
@@ -43,7 +62,8 @@ class WorkshopDaemon:
     def start(self) -> dict[str, Any]:
         start_info = self.session.start()
         handler = _build_handler(self.session)
-        self.httpd = HTTPServer((self.host, self.port), handler)
+        self.httpd = _PumpingHTTPServer((self.host, self.port), handler)
+        self.httpd.session = self.session
         actual_host, actual_port = self.httpd.server_address
         self.host = actual_host
         self.port = actual_port
@@ -73,7 +93,7 @@ class WorkshopDaemon:
         if self.httpd is None:
             msg = "Daemon not started"
             raise RuntimeError(msg)
-        self.httpd.serve_forever()
+        self.httpd.serve_forever(poll_interval=PUMP_SECONDS)
 
     def shutdown(self) -> None:
         if self.httpd is not None:
@@ -211,6 +231,14 @@ def _build_handler(session: WorkshopSessionState) -> type[BaseHTTPRequestHandler
                     _json_response(self, 200, {"ok": True, "result": result})
                     return
 
+                if self.path == "/tabs":
+                    if payload.get("select") is not None:
+                        result = session.select_tab(int(payload["select"]))
+                    else:
+                        result = session.tabs()
+                    _json_response(self, 200, {"ok": True, "result": result})
+                    return
+
                 if self.path == "/downloads":
                     result = session.list_downloads()
                     _json_response(self, 200, {"ok": True, "result": result})
@@ -243,6 +271,7 @@ def run_daemon(
     port: int = 18742,
     detach: bool = False,
     capture_types: tuple[str, ...] | None = None,
+    fresh: bool = False,
 ) -> dict[str, Any]:
     if detach:
         pid = os.fork()
@@ -257,6 +286,7 @@ def run_daemon(
         host=host,
         port=port,
         capture_types=capture_types,
+        fresh=fresh,
     )
 
     def handle_signal(_signum: int, _frame: object) -> None:
