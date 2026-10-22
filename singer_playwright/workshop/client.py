@@ -70,6 +70,10 @@ def network_replay(seq: int, **kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
     return _request("POST", "/network/replay", {"seq": seq, **kwargs})
 
 
+def tabs(select: int | None = None) -> dict[str, Any]:
+    return _request("POST", "/tabs", {"select": select})
+
+
 def downloads() -> dict[str, Any]:
     return _request("POST", "/downloads", {})
 

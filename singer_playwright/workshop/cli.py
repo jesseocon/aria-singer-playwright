@@ -31,6 +31,7 @@ def handle_workshop(args: argparse.Namespace) -> None:
             capture_types=tuple(t.strip() for t in args.capture_types.split(",") if t.strip())
             if args.capture_types
             else None,
+            fresh=args.fresh,
         )
         return
 
@@ -87,6 +88,10 @@ def handle_workshop(args: argparse.Namespace) -> None:
 
     if command == "screenshot":
         _print_json(workshop_client.screenshot(name=args.name))
+        return
+
+    if command == "tabs":
+        _print_json(workshop_client.tabs(select=args.select))
         return
 
     if command == "downloads":
@@ -226,6 +231,11 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
         default=None,
         help="Comma-separated Playwright resource types to record (default: xhr,fetch,eventsource)",
     )
+    start.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Start logged out; --storage-state is only where save-storage-state writes",
+    )
     start.set_defaults(workshop_command="start")
 
     stop = workshop_sub.add_parser("stop", help="Stop workshop daemon")
@@ -264,6 +274,10 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     extract.add_argument("--frame-url-pattern", default=None)
     extract.add_argument("--limit", type=int, default=50)
     extract.set_defaults(workshop_command="extract")
+
+    tabs = workshop_sub.add_parser("tabs", help="List open tabs, or pick the one commands act on")
+    tabs.add_argument("--select", type=int, default=None, help="Tab index to make active")
+    tabs.set_defaults(workshop_command="tabs")
 
     downloads = workshop_sub.add_parser("downloads", help="List files downloaded in this session")
     downloads.set_defaults(workshop_command="downloads")
