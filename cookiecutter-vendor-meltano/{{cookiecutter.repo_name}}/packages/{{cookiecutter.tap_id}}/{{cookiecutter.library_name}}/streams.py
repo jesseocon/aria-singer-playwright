@@ -38,6 +38,11 @@ class ExampleStream({{ cookiecutter.source_name }}Stream):
         page: Page,
         context: Context | None,
     ) -> Iterable[dict]:
+        # The base class already reports this stream's start, finish (with its row
+        # count) and failure to the run log. Add the rest where a person would ask:
+        #   self.skip("not in this subscription")      - not fetched this run, and why
+        #   self.progress(month, 24, "months")          - how far a long stream has got
+        #   self.notice("rates look stale", warning=True) - shown above the run's log
         page.goto("{{ cookiecutter.base_url }}", wait_until="domcontentloaded")
         # TODO: implement extraction
         yield {"id": "example-1", "value": page.title()}
