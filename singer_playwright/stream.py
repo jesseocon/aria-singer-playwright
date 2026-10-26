@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from singer_sdk.streams import Stream
 
+from singer_playwright import progress
 from singer_playwright.helpers import polite_sleep, scroll_to_load, wait_for_network_idle
 from singer_playwright.tap import PlaywrightTap
 
@@ -26,9 +27,13 @@ if TYPE_CHECKING:
 class PlaywrightStream(Stream):
     """Stream base for browser-backed extraction.
 
-    Subclasses implement ``extract_records``; ``get_records`` handles tap wiring
-    and rate limiting.
+    Subclasses implement ``extract_records``; ``get_records`` handles tap wiring,
+    rate limiting and run progress: each stream reports when it starts, when it
+    finishes (with its row count) and why it failed, so aria-runner can show it.
     """
+
+    _progress_records = 0
+    _progress_skipped = False
 
     @property
     def playwright_tap(self) -> PlaywrightTap:
@@ -44,8 +49,35 @@ class PlaywrightStream(Stream):
 
     @override
     def get_records(self, context: Context | None) -> Iterable[dict]:
-        self.playwright_tap.rate_limit()
-        yield from self.extract_records(self.page, context)
+        # Partitioned streams call this once per context; the count runs across them.
+        self.report("stream.started")
+        try:
+            self.playwright_tap.rate_limit()
+            for record in self.extract_records(self.page, context):
+                self._progress_records += 1
+                yield record
+        except Exception as exc:
+            self.report("error", message=f"{type(exc).__name__}: {exc}"[:500])
+            raise
+        if not self._progress_skipped:
+            self.report("stream.finished", records=self._progress_records)
+
+    def report(self, kind: str, **fields: object) -> None:
+        """Report a progress event for this stream (singer_playwright.progress)."""
+        progress.report(self.logger, kind, stream=self.name, **fields)
+
+    def progress(self, done: float, total: float | None = None, unit: str | None = None) -> None:
+        """How far a long stream has got, e.g. ``self.progress(12, 26, "months")``."""
+        self.report("stream.progress", done=done, total=total, unit=unit)
+
+    def notice(self, message: str, *, code: str | None = None, warning: bool = False) -> None:
+        """Something a person reading the run should know (shown above the log)."""
+        self.report("warning" if warning else "notice", message=message, code=code)
+
+    def skip(self, reason: str, *, code: str | None = None) -> None:
+        """Mark this stream as deliberately not fetched this run, and say why."""
+        self._progress_skipped = True
+        self.report("stream.skipped", reason=reason, code=code)
 
     @abstractmethod
     def extract_records(
