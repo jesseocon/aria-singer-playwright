@@ -57,7 +57,7 @@ singer-playwright = { path = "../aria-singer-playwright", editable = true }
 
 ## Bump framework version
 
-1. Tag `aria-singer-playwright` (e.g. `v0.2.0`).
+1. Tag `aria-singer-playwright` (e.g. `v0.3.0`).
 2. In each vendor repo, set `singer_playwright_rev` or update `[tool.uv.sources]` `rev`.
 3. `uv sync`, run tests, redeploy.
 

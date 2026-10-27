@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from singer_sdk.streams import Stream
 
-from singer_playwright import progress
+from singer_playwright import progress, screenshots
 from singer_playwright.helpers import polite_sleep, scroll_to_load, wait_for_network_idle
 from singer_playwright.tap import PlaywrightTap
 
@@ -57,6 +57,8 @@ class PlaywrightStream(Stream):
                 self._progress_records += 1
                 yield record
         except Exception as exc:
+            # The page as it was when the stream failed, before anything closes it.
+            self.screenshot(f"{self.name} failed: {type(exc).__name__}")
             self.report("error", message=f"{type(exc).__name__}: {exc}"[:500])
             raise
         if not self._progress_skipped:
@@ -73,6 +75,20 @@ class PlaywrightStream(Stream):
     def notice(self, message: str, *, code: str | None = None, warning: bool = False) -> None:
         """Something a person reading the run should know (shown above the log)."""
         self.report("warning" if warning else "notice", message=message, code=code)
+
+    def screenshot(self, label: str, page: Page | None = None) -> str | None:
+        """Keep a screenshot of the page in the run (shown in its log panel). Never raises.
+
+        Only an already open browser is used: a screenshot never starts one.
+        """
+        if page is None:
+            if getattr(self.playwright_tap, "_browser_runtime", None) is None:
+                return None
+            try:
+                page = self.page  # the tap's working tab (a portal tap may not use the first one)
+            except Exception:  # noqa: BLE001
+                return None
+        return screenshots.screenshot(page, label, self.logger, stream=self.name)
 
     def skip(self, reason: str, *, code: str | None = None) -> None:
         """Mark this stream as deliberately not fetched this run, and say why."""

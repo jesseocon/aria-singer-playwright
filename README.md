@@ -63,4 +63,4 @@ See [docs/new-vendor-repo.md](docs/new-vendor-repo.md).
 
 ## Releases
 
-Tag `v0.1.0`, `v0.2.0`, … on this repo. Consumer taps pin `rev` in `[tool.uv.sources]`.
+Tag `v0.1.0`, `v0.3.0`, … on this repo. Consumer taps pin `rev` in `[tool.uv.sources]`.
