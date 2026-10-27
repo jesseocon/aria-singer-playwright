@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0
+
+- `singer_playwright.codes.wait_for_code(address, after=...)`: the newest sign-in code a vendor
+  emailed to the login's code inbox since `after`, handed over once by aria-runner's code
+  broker (runner 0.1.24). For logins with an emailed one-time code, such as Okta's email factor.
+
 ## v0.3.0
 
 - Screenshots for aria-runner runs: `singer_playwright.screenshots.screenshot(page, label, logger)`
