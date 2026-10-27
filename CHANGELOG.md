@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0
+
+- Screenshots for aria-runner runs: `singer_playwright.screenshots.screenshot(page, label, logger)`
+  and `PlaywrightStream.screenshot(label)` save a JPEG to the run's `ARIA_SCREENSHOT_DIR` and
+  report a `notice` naming it (`code: screenshot`), which the console shows in the run's log
+  panel. A failing stream keeps one automatically before it reports the error. Never raises;
+  outside a run nothing is saved.
+
 ## v0.2.0
 
 - `PlaywrightStream` reports run progress for aria-runner (contract v1): each stream's start,
