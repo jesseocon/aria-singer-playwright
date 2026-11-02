@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0
+
+- `singer_playwright.errors.TransientError`: raise it (or any exception with `retryable = True`)
+  once a tap's own retries have run out on a failure that usually clears up (a rate limit, a
+  vendor outage). The stream's error event says `"retryable": true`, and aria-runner (0.1.29)
+  queues the run again later instead of treating it as permanent.
+
 ## v0.4.0
 
 - `singer_playwright.codes.wait_for_code(address, after=...)`: the newest sign-in code a vendor

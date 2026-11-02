@@ -83,6 +83,19 @@ def test_a_failing_stream_reports_the_error_and_still_raises(caplog) -> None:
     kinds = [e["kind"] for e in _events(caplog)]
     assert kinds == ["stream.started", "error"]
     assert "grid paging broke" in _events(caplog)[1]["message"]
+    assert "retryable" not in _events(caplog)[1]
+
+
+def test_a_transient_failure_is_reported_retryable(caplog) -> None:
+    from singer_playwright.errors import TransientError
+
+    class VendorDown(TransientError):
+        pass
+
+    caplog.set_level(logging.INFO)
+    with pytest.raises(VendorDown):
+        list(_Stream(VendorDown("gateway 404 after 3 tries")).get_records(None))
+    assert _events(caplog)[1]["retryable"] is True
 
 
 def test_bad_events_are_refused_but_report_never_raises(caplog) -> None:
