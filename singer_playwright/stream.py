@@ -59,7 +59,8 @@ class PlaywrightStream(Stream):
         except Exception as exc:
             # The page as it was when the stream failed, before anything closes it.
             self.screenshot(f"{self.name} failed: {type(exc).__name__}")
-            self.report("error", message=f"{type(exc).__name__}: {exc}"[:500])
+            retryable = getattr(exc, "retryable", False) is True
+            self.report("error", message=f"{type(exc).__name__}: {exc}"[:500], retryable=retryable or None)
             raise
         if not self._progress_skipped:
             self.report("stream.finished", records=self._progress_records)
