@@ -119,7 +119,7 @@ class PlaywrightTap(Tap):
             headless=bool(self.config.get("headless", True)),
             stealth=bool(self.config.get("stealth", False)),
         )
-        self._browser_runtime = BrowserRuntime(config)
+        self._browser_runtime = BrowserRuntime(config, self.logger)
         self._browser_runtime.start()
         if not self._session_verified:
             probe_session(
@@ -140,7 +140,7 @@ class PlaywrightTap(Tap):
             headless=bool(self.config.get("headless", True)),
             stealth=bool(self.config.get("stealth", False)),
         )
-        self._browser_runtime = BrowserRuntime(config)
+        self._browser_runtime = BrowserRuntime(config, self.logger)
         self._browser_runtime.start()
         apply_credentials(
             self._browser_runtime.page,
