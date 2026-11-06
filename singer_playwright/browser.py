@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+
+from singer_playwright import videos
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -56,8 +60,11 @@ def apply_stealth(playwright: Playwright) -> None:
 class BrowserRuntime:
     """Owns Playwright browser + context for the duration of a tap run."""
 
-    def __init__(self, config: BrowserConfig) -> None:
+    def __init__(self, config: BrowserConfig, logger: logging.Logger | None = None) -> None:
         self._config = config
+        self._logger = logger or logging.getLogger("singer_playwright")
+        # Set when the run asked for a video (aria-runner's ARIA_RECORD_VIDEO).
+        self._video_dir: Path | None = None
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
@@ -104,11 +111,18 @@ class BrowserRuntime:
         }
         if storage_state is not None:
             context_options["storage_state"] = storage_state
+        self._video_dir = videos.recording_dir()
+        if self._video_dir is not None:
+            context_options["record_video_dir"] = str(self._video_dir)
+            context_options["record_video_size"] = videos.SIZE
         self._context = self._browser.new_context(**context_options)
         self._page = self._context.new_page()
 
     def stop(self) -> None:
+        recordings: list[Path] = []
         if self._context is not None:
+            if self._video_dir is not None:
+                recordings = self._recordings()
             self._context.close()
             self._context = None
         if self._browser is not None:
@@ -118,6 +132,21 @@ class BrowserRuntime:
             self._playwright.stop()
             self._playwright = None
         self._page = None
+        if self._video_dir is not None:
+            # Playwright finishes writing each video when its page's context closes.
+            videos.keep(recordings, self._logger)
+            shutil.rmtree(self._video_dir, ignore_errors=True)
+            self._video_dir = None
+
+    def _recordings(self) -> list[Path]:
+        paths: list[Path] = []
+        for page in self.context.pages:
+            try:
+                if page.video is not None:
+                    paths.append(Path(page.video.path()))
+            except Exception:  # noqa: BLE001 - a recording must never stop the run
+                self._logger.debug("no recording for a page", exc_info=True)
+        return paths
 
     def __enter__(self) -> BrowserRuntime:
         self.start()

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.0
+
+- Video of a run's browser: when aria-runner starts a run with "record video" it sets
+  `ARIA_RECORD_VIDEO=1`, and `BrowserRuntime` records every page (1280x800 WebM). When the browser
+  closes, each recording moves into the run's `ARIA_SCREENSHOT_DIR` and a notice names it
+  (`code: video`, `video: <file>`), so the runner uploads it and the console plays it. Nothing is
+  recorded otherwise. `BrowserRuntime(config, logger)` takes the tap's logger for that notice;
+  `PlaywrightTap` passes its own.
+
 ## v0.6.0
 
 - Stealth (playwright-stealth 2.0.3), off by default: `BrowserConfig(stealth=True)`, the tap setting
