@@ -32,6 +32,7 @@ def handle_workshop(args: argparse.Namespace) -> None:
             if args.capture_types
             else None,
             fresh=args.fresh,
+            stealth=args.stealth,
         )
         return
 
@@ -236,6 +237,7 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
         action="store_true",
         help="Start logged out; --storage-state is only where save-storage-state writes",
     )
+    start.add_argument("--stealth", action="store_true", help="Mask the signs of an automated browser")
     start.set_defaults(workshop_command="start")
 
     stop = workshop_sub.add_parser("stop", help="Stop workshop daemon")

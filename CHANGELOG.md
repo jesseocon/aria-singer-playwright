@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.0
+
+- Stealth (playwright-stealth 2.0.3), off by default: `BrowserConfig(stealth=True)`, the tap setting
+  `stealth: true`, or `workshop start --stealth`. It hides the signs of an automated browser
+  (`navigator.webdriver`, the HeadlessChrome user agent in the page and in request headers, empty
+  plugins, WebGL vendor, and so on). `navigator.platform` follows the host (Linux x86_64 in Cloud Run)
+  so it agrees with the user agent; stealth's own default is Win32.
+
 ## v0.5.0
 
 - `singer_playwright.errors.TransientError`: raise it (or any exception with `retryable = True`)

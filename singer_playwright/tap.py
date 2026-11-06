@@ -57,6 +57,13 @@ class PlaywrightTap(Tap):
             default=True,
         ),
         th.Property(
+            "stealth",
+            th.BooleanType(nullable=False),
+            title="Stealth",
+            description="Mask the signs of an automated browser (playwright-stealth)",
+            default=False,
+        ),
+        th.Property(
             "rate_limit_seconds",
             th.NumberType(nullable=False),
             title="Rate Limit Seconds",
@@ -110,6 +117,7 @@ class PlaywrightTap(Tap):
         config = BrowserConfig(
             storage_state_path=self.config["storage_state_path"],
             headless=bool(self.config.get("headless", True)),
+            stealth=bool(self.config.get("stealth", False)),
         )
         self._browser_runtime = BrowserRuntime(config)
         self._browser_runtime.start()
@@ -130,6 +138,7 @@ class PlaywrightTap(Tap):
         config = BrowserConfig(
             storage_state_path=None,
             headless=bool(self.config.get("headless", True)),
+            stealth=bool(self.config.get("stealth", False)),
         )
         self._browser_runtime = BrowserRuntime(config)
         self._browser_runtime.start()

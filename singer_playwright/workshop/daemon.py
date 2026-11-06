@@ -46,6 +46,7 @@ class WorkshopDaemon:
         run_id: str = "",
         capture_types: tuple[str, ...] | None = None,
         fresh: bool = False,
+        stealth: bool = False,
     ) -> None:
         self.host = host
         self.port = port
@@ -54,6 +55,7 @@ class WorkshopDaemon:
             headless=headless,
             run_id=run_id,
             fresh=fresh,
+            stealth=stealth,
         )
         if capture_types:
             self.session.capture_types = capture_types
@@ -272,6 +274,7 @@ def run_daemon(
     detach: bool = False,
     capture_types: tuple[str, ...] | None = None,
     fresh: bool = False,
+    stealth: bool = False,
 ) -> dict[str, Any]:
     if detach:
         pid = os.fork()
@@ -287,6 +290,7 @@ def run_daemon(
         port=port,
         capture_types=capture_types,
         fresh=fresh,
+        stealth=stealth,
     )
 
     def handle_signal(_signum: int, _frame: object) -> None:
