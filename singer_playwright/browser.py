@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -31,6 +32,25 @@ class BrowserConfig:
     headless: bool = True
     viewport_width: int = 1600
     viewport_height: int = 1000
+    # Mask the signs of an automated browser (playwright-stealth): navigator.webdriver, headless user agent,
+    # plugins, WebGL vendor and the like. Off by default; a tap turns it on per connection.
+    stealth: bool = False
+
+
+def stealth_platform() -> str:
+    """navigator.platform for this host, so it agrees with the user agent (stealth's default is Win32)."""
+    if sys.platform == "darwin":
+        return "MacIntel"
+    if sys.platform.startswith("win"):
+        return "Win32"
+    return "Linux x86_64"
+
+
+def apply_stealth(playwright: Playwright) -> None:
+    """Hook every browser this Playwright launches: init scripts and request headers both."""
+    from playwright_stealth import Stealth
+
+    Stealth(navigator_platform_override=stealth_platform()).hook_playwright_context(playwright)
 
 
 class BrowserRuntime:
@@ -70,6 +90,8 @@ class BrowserRuntime:
             storage_state = str(path)
 
         self._playwright = sync_playwright().start()
+        if self._config.stealth:
+            apply_stealth(self._playwright)
         self._browser = self._playwright.chromium.launch(
             headless=self._config.headless,
             args=chromium_launch_args(),

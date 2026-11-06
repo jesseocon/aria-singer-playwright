@@ -33,6 +33,7 @@ class WorkshopSessionState:
     downloads: DownloadRecorder | None = None
     runtime: BrowserRuntime | None = None
     fresh: bool = False
+    stealth: bool = False
     active_page: Any = None
 
     def start(self) -> dict[str, Any]:
@@ -47,6 +48,7 @@ class WorkshopSessionState:
         config = BrowserConfig(
             storage_state_path=None if self.fresh else self.storage_state_path,
             headless=self.headless,
+            stealth=self.stealth,
         )
         self.runtime = BrowserRuntime(config)
         self.runtime.start()
