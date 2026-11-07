@@ -22,7 +22,7 @@ def test_a_run_that_asks_for_video_gets_one_webm_and_a_notice(tmp_path, monkeypa
     assert len(files) == 1 and files[0].endswith("-browser.webm"), files
     assert (tmp_path / files[0]).stat().st_size > 0
     events = [json.loads(r.getMessage().removeprefix(MARKER)) for r in caplog.records if r.getMessage().startswith(MARKER)]
-    assert [(e["kind"], e["code"], e["video"]) for e in events] == [("notice", "video", files[0])]
+    assert [(e["kind"], e["code"], e["video"]) for e in events if e["kind"] == "notice"] == [("notice", "video", files[0])]
 
 
 def test_no_video_unless_the_run_asks(tmp_path, monkeypatch) -> None:

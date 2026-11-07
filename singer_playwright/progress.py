@@ -31,6 +31,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "notice": ("message",),
     "warning": ("message",),
     "error": ("message",),
+    "network": ("browser",),
 }
 
 
