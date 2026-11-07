@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 
-from singer_playwright import videos
+from singer_playwright import network, videos
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -39,6 +39,8 @@ class BrowserConfig:
     # Mask the signs of an automated browser (playwright-stealth): navigator.webdriver, headless user agent,
     # plugins, WebGL vendor and the like. Off by default; a tap turns it on per connection.
     stealth: bool = False
+    # Names this browser in the run's network profile (several browsers can serve one run).
+    label: str = "browser"
 
 
 def stealth_platform() -> str:
@@ -65,6 +67,7 @@ class BrowserRuntime:
         self._logger = logger or logging.getLogger("singer_playwright")
         # Set when the run asked for a video (aria-runner's ARIA_RECORD_VIDEO).
         self._video_dir: Path | None = None
+        self._network: network.NetworkProfile | None = None
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
@@ -116,6 +119,7 @@ class BrowserRuntime:
             context_options["record_video_dir"] = str(self._video_dir)
             context_options["record_video_size"] = videos.SIZE
         self._context = self._browser.new_context(**context_options)
+        self._network = network.NetworkProfile.watch(self._context, self._config.label, self._logger)
         self._page = self._context.new_page()
 
     def stop(self) -> None:
@@ -137,6 +141,9 @@ class BrowserRuntime:
             videos.keep(recordings, self._logger)
             shutil.rmtree(self._video_dir, ignore_errors=True)
             self._video_dir = None
+        if self._network is not None:
+            self._network.report()
+            self._network = None
 
     def _recordings(self) -> list[Path]:
         paths: list[Path] = []
