@@ -88,3 +88,12 @@ def test_max_stealth_hides_automation(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not seen["webdriver"]
     assert "HeadlessChrome" not in seen["ua"]
     assert seen["tz"] == "America/Chicago"
+
+
+def test_chrome_gets_a_writable_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import tempfile
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert browser.chrome_home() == str(tmp_path)
+    monkeypatch.setenv("HOME", "/nonexistent-home")
+    assert browser.chrome_home() == tempfile.gettempdir()

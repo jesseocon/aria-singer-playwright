@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -52,6 +53,15 @@ def max_stealth() -> bool:
     return os.environ.get(BROWSER_ENV, "").strip().lower() == MAX_STEALTH
 
 
+def chrome_home() -> str:
+    """A writable HOME for Google Chrome, which will not start without one (its crash handler
+    needs a folder there); Playwright's Chromium does not care."""
+    home = os.environ.get("HOME", "")
+    if home and os.access(home, os.W_OK):
+        return home
+    return tempfile.gettempdir()
+
+
 def start_playwright(*, stealth: bool = False) -> Playwright:
     """Start the driver for this run's browser. playwright-stealth applies only to standard runs:
     its init scripts are themselves a tell, and patchright needs none of them."""
@@ -80,7 +90,7 @@ def launch_chromium(playwright: Playwright, *, headless: bool, width: int = 1600
                 "--lang=en-US",
                 f"--disable-features={STEALTH_DISABLED_FEATURES}",
             ],
-            env={**os.environ, "TZ": timezone, "LANG": "en_US.UTF-8"},
+            env={**os.environ, "TZ": timezone, "LANG": "en_US.UTF-8", "HOME": chrome_home()},
             slow_mo=SLOW_MO_MS,
         )
     return playwright.chromium.launch(headless=headless, args=chromium_launch_args())
