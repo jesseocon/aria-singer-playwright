@@ -28,6 +28,72 @@ def chromium_launch_args() -> list[str]:
     return args
 
 
+# aria-runner sets ARIA_BROWSER from the run's login, so every run on one login drives the same
+# browser. "max_stealth" swaps Playwright's Chromium for patchright driving Google Chrome: no
+# automation leaks over the DevTools protocol, a real Chrome build, a visible window, the same
+# locale and time zone on every run, and a small pause between actions. The IP stays the cloud's.
+BROWSER_ENV = "ARIA_BROWSER"
+MAX_STEALTH = "max_stealth"
+TIMEZONE_ENV = "ARIA_BROWSER_TIMEZONE"
+DEFAULT_TIMEZONE = "America/Chicago"
+SLOW_MO_MS = 120
+# Playwright's own --disable-features list (patchright 1.64, chromiumSwitches.ts) minus
+# ThirdPartyStoragePartitioning, which a normal Chrome keeps on. Chrome keeps the last
+# --disable-features it is given, so this one replaces Playwright's.
+STEALTH_DISABLED_FEATURES = (
+    "AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,"
+    "GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,"
+    "BlockOriginHeaderModificationOnRedirect,AvoidCorsURLLoaderRestartOnRedirect,Translate,"
+    "AutoDeElevate,OptimizationHints,NetworkTimeServiceQuerying,AimEnabled"
+)
+
+
+def max_stealth() -> bool:
+    return os.environ.get(BROWSER_ENV, "").strip().lower() == MAX_STEALTH
+
+
+def start_playwright(*, stealth: bool = False) -> Playwright:
+    """Start the driver for this run's browser. playwright-stealth applies only to standard runs:
+    its init scripts are themselves a tell, and patchright needs none of them."""
+    if max_stealth():
+        from patchright.sync_api import sync_playwright as patchright_playwright
+
+        return patchright_playwright().start()
+    playwright = sync_playwright().start()
+    if stealth:
+        apply_stealth(playwright)
+    return playwright
+
+
+def launch_chromium(playwright: Playwright, *, headless: bool, width: int = 1600, height: int = 1000) -> Browser:
+    """Every browser a tap opens goes through here, so a login's setting reaches all of them."""
+    if max_stealth():
+        # Language and time zone come from Chrome's own process, not CDP overrides, so web workers
+        # agree with the page.
+        timezone = os.environ.get(TIMEZONE_ENV, "").strip() or DEFAULT_TIMEZONE
+        return playwright.chromium.launch(
+            channel="chrome",
+            headless=False,
+            args=[
+                *chromium_launch_args(),
+                f"--window-size={width},{height}",
+                "--lang=en-US",
+                f"--disable-features={STEALTH_DISABLED_FEATURES}",
+            ],
+            env={**os.environ, "TZ": timezone, "LANG": "en_US.UTF-8"},
+            slow_mo=SLOW_MO_MS,
+        )
+    return playwright.chromium.launch(headless=headless, args=chromium_launch_args())
+
+
+def context_options(*, width: int = 1600, height: int = 1000) -> dict[str, object]:
+    """new_context options for this run's browser (add storage_state and video on top)."""
+    if max_stealth():
+        # The page takes the real window's size, so screen, window and viewport agree.
+        return {"no_viewport": True}
+    return {"viewport": {"width": width, "height": height}}
+
+
 @dataclass
 class BrowserConfig:
     """Runtime browser settings."""
@@ -37,7 +103,8 @@ class BrowserConfig:
     viewport_width: int = 1600
     viewport_height: int = 1000
     # Mask the signs of an automated browser (playwright-stealth): navigator.webdriver, headless user agent,
-    # plugins, WebGL vendor and the like. Off by default; a tap turns it on per connection.
+    # plugins, WebGL vendor and the like. Off by default; a tap turns it on per connection. Ignored when
+    # the run's login is set to max stealth (ARIA_BROWSER), which drives patchright instead.
     stealth: bool = False
     # Names this browser in the run's network profile (several browsers can serve one run).
     label: str = "browser"
@@ -99,26 +166,19 @@ class BrowserRuntime:
                 raise FileNotFoundError(msg)
             storage_state = str(path)
 
-        self._playwright = sync_playwright().start()
-        if self._config.stealth:
-            apply_stealth(self._playwright)
-        self._browser = self._playwright.chromium.launch(
-            headless=self._config.headless,
-            args=chromium_launch_args(),
-        )
-        context_options: dict[str, object] = {
-            "viewport": {
-                "width": self._config.viewport_width,
-                "height": self._config.viewport_height,
-            },
-        }
+        width, height = self._config.viewport_width, self._config.viewport_height
+        self._playwright = start_playwright(stealth=self._config.stealth)
+        if max_stealth():
+            self._logger.info("Browser: patchright with Google Chrome (this login is set to max stealth)")
+        self._browser = launch_chromium(self._playwright, headless=self._config.headless, width=width, height=height)
+        options = context_options(width=width, height=height)
         if storage_state is not None:
-            context_options["storage_state"] = storage_state
+            options["storage_state"] = storage_state
         self._video_dir = videos.recording_dir()
         if self._video_dir is not None:
-            context_options["record_video_dir"] = str(self._video_dir)
-            context_options["record_video_size"] = videos.SIZE
-        self._context = self._browser.new_context(**context_options)
+            options["record_video_dir"] = str(self._video_dir)
+            options["record_video_size"] = videos.SIZE
+        self._context = self._browser.new_context(**options)
         self._network = network.NetworkProfile.watch(self._context, self._config.label, self._logger)
         self._page = self._context.new_page()
 

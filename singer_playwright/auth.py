@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from singer_playwright.browser import context_options, launch_chromium, start_playwright
 
 
 def run_interactive_auth(
@@ -28,9 +28,10 @@ def run_interactive_auth(
     out = Path(output_path).expanduser().resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False)
-        context = browser.new_context(viewport={"width": 1600, "height": 1000})
+    playwright = start_playwright()
+    try:
+        browser = launch_chromium(playwright, headless=False)
+        context = browser.new_context(**context_options())
         page = context.new_page()
 
         print(f"Opening {login_url} — complete login (including 2FA) in the browser window.")
@@ -50,5 +51,7 @@ def run_interactive_auth(
 
         context.close()
         browser.close()
+    finally:
+        playwright.stop()
 
     return out
