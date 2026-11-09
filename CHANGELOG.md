@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.11.0
+
+- A login's own proxy: aria-runner sets `ARIA_PROXY_URL` (`http://user:pass@host:port`) for every
+  run on a login that has one, and `launch_chromium` gives it to both engines (Playwright and
+  patchright). Before the browser is handed back, a page in a throwaway context asks
+  api.ipify.org (then ifconfig.me) for the exit IP. No answer raises `ProxyUnavailable`; an IP
+  other than `ARIA_PROXY_EXPECTED_IP` raises `ProxyMismatch`. Both are `ProxyError`, never retried,
+  and never name the proxy's username or password. The exit IP is reported as a `proxy` notice.
+- `ARIA_BROWSER_TIMEZONE` now applies under the standard engine too (the context's
+  `timezone_id`); max stealth keeps setting Chrome's own `TZ`.
+
 ## v0.7.0
 
 - Video of a run's browser: when aria-runner starts a run with "record video" it sets
