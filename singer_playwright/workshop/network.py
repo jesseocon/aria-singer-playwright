@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, quote, quote_plus, urlencode, urlparse, urlunparse
 
 DEFAULT_RESOURCE_TYPES = frozenset({"xhr", "fetch", "eventsource"})
 
@@ -189,6 +189,18 @@ class NetworkRecorder:
         self.marks: list[dict[str, Any]] = []
         self.seq = 0
         self._raw: dict[int, dict[str, Any]] = {}
+        self._secrets: set[str] = set()
+
+    def add_secret(self, value: str) -> None:
+        """A value typed from the environment (fill --value-env): saved request bodies never hold it."""
+        if value:
+            self._secrets.add(value)
+
+    def _scrub(self, body: bytes) -> bytes:
+        for value in self._secrets:
+            for form in {value, quote_plus(value), quote(value, safe=""), json.dumps(value)[1:-1]}:
+                body = body.replace(form.encode(), b"[sealed]")
+        return body
 
     def attach(self, context: Any) -> None:  # noqa: ANN401
         context.on("requestfinished", self._on_finished)
@@ -248,6 +260,7 @@ class NetworkRecorder:
         }
         if post_data:
             entry["request_bytes"] = len(post_data)
+            post_data = self._scrub(post_data)
             entry["request_body_file"] = self._write_body(f"{seq:05d}.request.txt", post_data)
             parsed_body = parse_json_bytes(post_data)
             if parsed_body is not None:

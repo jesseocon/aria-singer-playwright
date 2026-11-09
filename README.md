@@ -52,6 +52,20 @@ Or set `MELTANO_PROJECT_ROOT` / `SINGER_PLAYWRIGHT_WORKSHOP_SCRIPTS` before `uv 
 
 See Lighthouse `.cursor/skills/playwright-scraper-workshop/SKILL.md`.
 
+### Sign-ins nobody should see
+
+A sealed aria-runner login (the customer typed it in through a request link) goes into the
+daemon's environment, and `fill --value-env` types it; steps and recipes keep only the name:
+
+```bash
+aria-runner credentials exec crd_abc123 -- \
+  uv run python -m singer_playwright workshop start --storage-state /tmp/ws.json --headed --detach
+# exec printed ARIA_SIGN_IN_URL (not secret)
+uv run python -m singer_playwright workshop goto --url "https://login.vendor.example/"
+uv run python -m singer_playwright workshop act fill --selector '#username' --value-env TAP_USERNAME
+uv run python -m singer_playwright workshop act fill --selector '#password' --value-env TAP_PASSWORD
+```
+
 ## New vendor Meltano repo
 
 ```bash

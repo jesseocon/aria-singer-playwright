@@ -60,6 +60,8 @@ def handle_workshop(args: argparse.Namespace) -> None:
             params["selector"] = args.selector
         if args.value is not None:
             params["value"] = args.value
+        if args.value_env:
+            params["value_env"] = args.value_env
         if args.url_pattern:
             params["url_pattern"] = args.url_pattern
         if args.frame_url_pattern:
@@ -261,6 +263,12 @@ def add_workshop_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     )
     act.add_argument("--selector", default=None)
     act.add_argument("--value", default=None, help="fill: text to enter; download: filename to save as")
+    act.add_argument(
+        "--value-env",
+        default=None,
+        help="fill: type the value of this environment variable of the daemon (e.g. TAP_PASSWORD); "
+        "steps and recipes record the name, never the value",
+    )
     act.add_argument("--url-pattern", default=None)
     act.add_argument("--frame-url-pattern", default=None)
     act.add_argument("--frame-index", type=int, default=None)
