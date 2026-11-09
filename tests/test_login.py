@@ -85,6 +85,11 @@ class _Page:
             self.index += 1
 
 
+@pytest.fixture(autouse=True)
+def _plain_input(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ARIA_HUMANIZE", "0")  # the fake page has no mouse
+
+
 def test_password_login_submits_the_form_once() -> None:
     page = _Page([{"username", "password"}, set()])
 
