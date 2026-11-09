@@ -34,6 +34,9 @@ class PlaywrightStream(Stream):
 
     _progress_records = 0
     _progress_skipped = False
+    # Per field, how many records left it empty (None or missing); reported with the finish so
+    # aria-runner can tell a field that suddenly went empty from one that always is.
+    _progress_nulls: dict[str, int] | None = None
 
     @property
     def playwright_tap(self) -> PlaywrightTap:
@@ -53,8 +56,11 @@ class PlaywrightStream(Stream):
         self.report("stream.started")
         try:
             self.playwright_tap.rate_limit()
+            if self._progress_nulls is None:
+                self._progress_nulls = dict.fromkeys(self.schema.get("properties") or {}, 0)
             for record in self.extract_records(self.page, context):
                 self._progress_records += 1
+                self._count_nulls(record)
                 yield record
         except Exception as exc:
             # The page as it was when the stream failed, before anything closes it.
@@ -63,7 +69,15 @@ class PlaywrightStream(Stream):
             self.report("error", message=f"{type(exc).__name__}: {exc}"[:500], retryable=retryable or None)
             raise
         if not self._progress_skipped:
-            self.report("stream.finished", records=self._progress_records)
+            self.report("stream.finished", records=self._progress_records, nulls=self._progress_nulls or None)
+
+    def _count_nulls(self, record: dict) -> None:
+        nulls = self._progress_nulls
+        if nulls is None:
+            return
+        for name in nulls:
+            if record.get(name) is None:
+                nulls[name] += 1
 
     def report(self, kind: str, **fields: object) -> None:
         """Report a progress event for this stream (singer_playwright.progress)."""

@@ -32,6 +32,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "warning": ("message",),
     "error": ("message",),
     "network": ("browser",),
+    # A site refused the browser: a rate limit or a bot challenge (singer_playwright.blocks).
+    "blocked": ("host", "reason"),
 }
 
 

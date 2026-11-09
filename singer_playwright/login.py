@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from singer_playwright import human
+
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
@@ -72,17 +74,17 @@ def _wait_for_login_form(page: Page, timeout_ms: int) -> None:
 
 def _fill_and_submit(page: Page, username: str, password: str, timeout_ms: int) -> None:
     if _is_visible(page, USERNAME_SELECTOR) and not _is_visible(page, PASSWORD_SELECTOR):
-        page.locator(USERNAME_SELECTOR).first.fill(username)
+        human.type_text(page.locator(USERNAME_SELECTOR).first, username)
         _click_submit(page)
         page.locator(PASSWORD_SELECTOR).first.wait_for(state="visible", timeout=timeout_ms)
     if _is_visible(page, USERNAME_SELECTOR):
-        page.locator(USERNAME_SELECTOR).first.fill(username)
+        human.type_text(page.locator(USERNAME_SELECTOR).first, username)
     _fill_password(page, password)
     _click_submit(page)
 
 
 def _fill_password(page: Page, password: str) -> None:
-    page.locator(PASSWORD_SELECTOR).first.fill(password)
+    human.type_text(page.locator(PASSWORD_SELECTOR).first, password)
 
 
 def _click_submit(page: Page) -> None:
@@ -91,7 +93,7 @@ def _click_submit(page: Page) -> None:
         'button:has-text("Sign in"), button:has-text("Continue"), '
         'input[type="submit"]',
     ).first
-    button.click()
+    human.click(button)
 
 
 def _wait_for_login_result(page: Page, timeout_ms: int) -> None:
@@ -115,7 +117,7 @@ def _is_existing_session(page: Page) -> bool:
 def _end_existing_session(page: Page) -> None:
     if not _is_visible(page, END_SESSION_BUTTON):
         raise LoginRejected("Account already has an active session.")
-    page.locator(END_SESSION_BUTTON).first.click()
+    human.click(page.locator(END_SESSION_BUTTON).first)
 
 
 def _is_verify_prompt(page: Page) -> bool:

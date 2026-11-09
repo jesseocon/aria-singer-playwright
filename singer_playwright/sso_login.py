@@ -19,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from singer_playwright import human
 from singer_playwright.login import LoginRejected
 from singer_playwright.totp import fresh_totp
 
@@ -94,7 +95,7 @@ def _click(page: Page, selectors: tuple[str, ...]) -> bool:
     target = _first_visible(page, selectors)
     if target is None:
         return False
-    target.click()
+    human.click(target)
     return True
 
 
@@ -146,7 +147,7 @@ def complete_sso(
             if codes_sent >= 2:
                 raise LoginRejected("Verification code was not accepted twice; check the TOTP secret")
             if window != last_code_window:
-                code_box.fill(fresh_totp(creds.totp_secret))
+                human.type_text(code_box, fresh_totp(creds.totp_secret))
                 last_code_window = int(time.time() // 30)
                 codes_sent += 1
                 log.info("SSO: entered verification code")
@@ -177,15 +178,15 @@ def complete_sso(
         password_box = _first_visible(page, PASSWORD)
         email_box = _first_visible(page, EMAIL)
         if email_box is not None and _needs_username(email_box, creds.username):
-            email_box.fill(creds.username)
+            human.type_text(email_box, creds.username)
             if password_box is not None:  # PingFederate shows both on one form
-                password_box.fill(creds.password)
+                human.type_text(password_box, creds.password)
             log.info("SSO: entered username")
             _click(page, SUBMIT)
             page.wait_for_timeout(1500)
             continue
         if password_box is not None and not password_box.input_value():
-            password_box.fill(creds.password)
+            human.type_text(password_box, creds.password)
             log.info("SSO: entered password")
             _click(page, SUBMIT)
             page.wait_for_timeout(1500)

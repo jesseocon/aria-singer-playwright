@@ -20,7 +20,7 @@ import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
-from singer_playwright import progress
+from singer_playwright import blocks, progress
 
 if TYPE_CHECKING:
     from playwright.sync_api import BrowserContext, Page, Request, WebSocket
@@ -58,14 +58,17 @@ class NetworkProfile:
 
     @classmethod
     def watch(cls, context: BrowserContext, label: str, logger: logging.Logger | None = None) -> NetworkProfile | None:
-        """A profile counting ``context``, or None when profiling is off."""
+        """A profile counting ``context``, or None when profiling is off. Either way the
+        context is watched for refusals (singer_playwright.blocks)."""
         if not enabled():
+            blocks.watch(context, logger)
             return None
         profile = cls(label, logger)
         profile.attach(context)
         return profile
 
     def attach(self, context: BrowserContext) -> None:
+        blocks.watch(context, self._logger)
         context.on("requestfinished", self._finished)
         context.on("requestfailed", self._failed_request)
         context.on("page", self._page)
