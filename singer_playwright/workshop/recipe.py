@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 import time
@@ -20,6 +21,22 @@ from singer_playwright.workshop.runs import read_json, write_json
 
 if TYPE_CHECKING:
     from playwright.sync_api import Frame, Page
+
+
+def fill_value(step: dict[str, Any]) -> str:
+    """The text a fill step types: its value, or the environment variable value_env names.
+
+    value_env is for sign-in values nobody should see (`aria-runner credentials exec` puts them in
+    the daemon's environment): the step and recipe keep only the variable's name.
+    """
+    name = step.get("value_env")
+    if name:
+        value = os.environ.get(str(name))
+        if not value:
+            msg = f"{name} is not set in the workshop's environment"
+            raise ValueError(msg)
+        return value
+    return str(step["value"])
 
 
 RECIPE_VERSION = 1
@@ -165,7 +182,7 @@ def execute_step(page: Page, step: dict[str, Any]) -> dict[str, Any]:
     if step_type == "fill":
         frame_pattern = step.get("frame_url_pattern")
         target: Page | Frame = _find_frame(page, frame_pattern) if frame_pattern else page
-        target.locator(str(step["selector"])).first.fill(str(step["value"]))
+        target.locator(str(step["selector"])).first.fill(fill_value(step))
         return result
 
     if step_type == "download":

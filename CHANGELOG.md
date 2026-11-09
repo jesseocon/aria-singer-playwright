@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.12.0
+
+- `workshop act fill --value-env NAME` types the value of the daemon's environment variable NAME
+  instead of `--value`. For sign-ins nobody should see: aria-runner's sealed logins (a customer
+  typed them in through a request link) reach the daemon's environment through
+  `aria-runner credentials exec <login> -- python -m singer_playwright workshop start ...`. The step,
+  the step log and saved recipes keep `value_env`, never the value, and replaying a recipe reads the
+  variable again (`recipe.fill_value`). Each such value is also replaced with `[sealed]` in the
+  request bodies the network recorder saves (as typed, form-encoded and JSON-escaped).
+
 ## v0.11.0
 
 - A login's own proxy: aria-runner sets `ARIA_PROXY_URL` (`http://user:pass@host:port`) for every

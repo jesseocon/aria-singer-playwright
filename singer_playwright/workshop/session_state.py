@@ -16,7 +16,7 @@ from singer_playwright.workshop.downloads import DownloadRecorder
 from singer_playwright.workshop.network import DEFAULT_RESOURCE_TYPES, NetworkRecorder
 from singer_playwright.workshop.observe import extract_table, observe_page, resolve_target
 from singer_playwright.workshop.runs import append_step_artifact, create_run_dir, write_json
-from singer_playwright.workshop.recipe import RecipeExtract, build_recipe_from_steps
+from singer_playwright.workshop.recipe import RecipeExtract, build_recipe_from_steps, fill_value
 
 
 @dataclass
@@ -254,7 +254,12 @@ class WorkshopSessionState:
                 frame_index=params.get("frame_index"),
                 frame_url_pattern=params.get("frame_url_pattern"),
             )
-            target.locator(str(params["selector"])).first.fill(str(params["value"]))
+            value = fill_value(params)
+            if params.get("value_env") and self.network is not None:
+                # The login's own value never lands in a saved request body either.
+                self.network.add_secret(value)
+            target.locator(str(params["selector"])).first.fill(value)
+            # value_env steps keep the variable's name; the value itself is never recorded.
             step = {"type": "fill", **params}
         elif action == "download":
             recorder = self._require_downloads()
