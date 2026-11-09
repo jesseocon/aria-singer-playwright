@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import random
 import sys
 from typing import TYPE_CHECKING, ClassVar
 
 from singer_sdk import Tap
 from singer_sdk import typing as th
 
+from singer_playwright import human
 from singer_playwright.browser import BrowserConfig, BrowserRuntime
 from singer_playwright.login import apply_credentials
 from singer_playwright.session import probe_session
@@ -173,6 +175,22 @@ class PlaywrightTap(Tap):
         super().teardown()
 
     def rate_limit(self) -> None:
+        """Wait about ``rate_limit_seconds`` between page actions: unevenly, with a longer
+        break now and then, the way a person works (singer_playwright.human)."""
         from singer_playwright.helpers import polite_sleep
 
-        polite_sleep(float(self.config.get("rate_limit_seconds", 0)))
+        seconds = float(self.config.get("rate_limit_seconds", 0))
+        if seconds <= 0:
+            return
+        if not human.enabled():
+            polite_sleep(seconds)
+            return
+        pacer = getattr(self, "_pacer", None)
+        if pacer is None or pacer.median != seconds:
+            pacer = human.Pacer(seconds, break_every=random.randint(10, 16), break_median=seconds * 5)
+            self._pacer = pacer
+        try:
+            page = self.page if getattr(self, "_browser_runtime", None) is not None else None
+        except Exception:  # noqa: BLE001 - no open page: wait without one
+            page = None
+        pacer.wait(page)

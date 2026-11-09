@@ -47,3 +47,17 @@ def test_typing_and_clicking_in_a_real_browser(monkeypatch: pytest.MonkeyPatch) 
         assert page.input_value("#u") == "ada"
         assert page.evaluate("window.keys") == 3  # one key at a time
         assert page.evaluate("window.clicked[2]") is True
+
+
+def test_a_taps_rate_limit_is_uneven(monkeypatch: pytest.MonkeyPatch) -> None:
+    from singer_playwright.tap import PlaywrightTap
+
+    monkeypatch.delenv(human.ENV, raising=False)
+    waited: list[float] = []
+    monkeypatch.setattr(human, "_wait", lambda seconds, _page: waited.append(seconds))
+    tap = MagicMock(spec=PlaywrightTap)
+    tap.config = {"rate_limit_seconds": 5}
+    tap._browser_runtime = None
+    for _ in range(6):
+        PlaywrightTap.rate_limit(tap)
+    assert len(waited) == 6 and len(set(waited)) > 3
