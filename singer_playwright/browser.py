@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import ipaddress
+import json
 import logging
 import os
 import shutil
@@ -10,10 +13,12 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import unquote, urlsplit
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 
-from singer_playwright import network, videos
+from singer_playwright import network, progress, videos
+from singer_playwright.errors import ProxyMismatch, ProxyUnavailable
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -32,7 +37,7 @@ def chromium_launch_args() -> list[str]:
 # aria-runner sets ARIA_BROWSER from the run's login, so every run on one login drives the same
 # browser. "max_stealth" swaps Playwright's Chromium for patchright driving Google Chrome: no
 # automation leaks over the DevTools protocol, a real Chrome build, a visible window, the same
-# locale and time zone on every run, and a small pause between actions. The IP stays the cloud's.
+# locale and time zone on every run, and a small pause between actions.
 BROWSER_ENV = "ARIA_BROWSER"
 MAX_STEALTH = "max_stealth"
 TIMEZONE_ENV = "ARIA_BROWSER_TIMEZONE"
@@ -47,6 +52,17 @@ STEALTH_DISABLED_FEATURES = (
     "BlockOriginHeaderModificationOnRedirect,AvoidCorsURLLoaderRestartOnRedirect,Translate,"
     "AutoDeElevate,OptimizationHints,NetworkTimeServiceQuerying,AimEnabled"
 )
+
+
+# aria-runner sets these from the run's login when it has its own proxy: every browser leaves
+# through it, and a run whose proxy is down or exits from another IP fails rather than use the
+# cloud's IP. ARIA_PROXY_URL is http://user:pass@host:port; its username and password are never
+# logged.
+PROXY_ENV = "ARIA_PROXY_URL"
+PROXY_EXPECTED_IP_ENV = "ARIA_PROXY_EXPECTED_IP"
+# Asked in order, through the browser, for the IP the browser exits from.
+IP_CHECK_URLS = ("https://api.ipify.org?format=json", "https://ifconfig.me/ip")
+IP_CHECK_TIMEOUT_MS = 20_000
 
 
 def max_stealth() -> bool:
@@ -75,13 +91,48 @@ def start_playwright(*, stealth: bool = False) -> Playwright:
     return playwright
 
 
-def launch_chromium(playwright: Playwright, *, headless: bool, width: int = 1600, height: int = 1000) -> Browser:
-    """Every browser a tap opens goes through here, so a login's setting reaches all of them."""
+def proxy_settings() -> dict[str, str] | None:
+    """Playwright's proxy option from ARIA_PROXY_URL, or None when the login has no proxy."""
+    raw = os.environ.get(PROXY_ENV, "").strip()
+    if not raw:
+        return None
+    parts = urlsplit(raw if "://" in raw else f"http://{raw}")
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    if not parts.hostname or port is None:
+        # Never echo the value: it holds the proxy's password.
+        msg = f"{PROXY_ENV} is not a proxy address (http://user:pass@host:port); the run stops rather than use the cloud's IP"
+        raise ProxyUnavailable(msg)
+    settings = {"server": f"{parts.scheme}://{parts.hostname}:{port}"}
+    if parts.username:
+        settings["username"] = unquote(parts.username)
+    if parts.password:
+        settings["password"] = unquote(parts.password)
+    return settings
+
+
+def launch_chromium(
+    playwright: Playwright,
+    *,
+    headless: bool,
+    width: int = 1600,
+    height: int = 1000,
+    logger: logging.Logger | None = None,
+) -> Browser:
+    """Every browser a tap opens goes through here, so a login's settings reach all of them.
+
+    With a proxy (ARIA_PROXY_URL) the browser is checked before it is handed back: it must answer
+    through the proxy, from ARIA_PROXY_EXPECTED_IP when that is set, or ProxyError is raised.
+    """
+    proxy = proxy_settings()
+    extra: dict[str, object] = {"proxy": proxy} if proxy else {}
     if max_stealth():
         # Language and time zone come from Chrome's own process, not CDP overrides, so web workers
         # agree with the page.
         timezone = os.environ.get(TIMEZONE_ENV, "").strip() or DEFAULT_TIMEZONE
-        return playwright.chromium.launch(
+        browser = playwright.chromium.launch(
             channel="chrome",
             headless=False,
             args=[
@@ -92,16 +143,80 @@ def launch_chromium(playwright: Playwright, *, headless: bool, width: int = 1600
             ],
             env={**os.environ, "TZ": timezone, "LANG": "en_US.UTF-8", "HOME": chrome_home()},
             slow_mo=SLOW_MO_MS,
+            **extra,
         )
-    return playwright.chromium.launch(headless=headless, args=chromium_launch_args())
+    else:
+        browser = playwright.chromium.launch(headless=headless, args=chromium_launch_args(), **extra)
+    if proxy:
+        try:
+            verify_proxy(browser, logger or logging.getLogger("singer_playwright"))
+        except BaseException:
+            with contextlib.suppress(Exception):
+                browser.close()
+            raise
+    return browser
+
+
+def verify_proxy(browser: Browser, logger: logging.Logger) -> str:
+    """The IP this browser exits from, asked by a page in a throwaway context, so through the
+    browser's own network stack and the proxy.
+
+    Raises ProxyUnavailable when no check answers and ProxyMismatch when ARIA_PROXY_EXPECTED_IP is
+    set and differs.
+    """
+    expected = os.environ.get(PROXY_EXPECTED_IP_ENV, "").strip()
+    context = browser.new_context()
+    try:
+        ip = exit_ip(context.new_page(), logger)
+    finally:
+        context.close()
+    if ip is None:
+        msg = "The login's proxy did not answer; the run stops rather than use the cloud's IP"
+        raise ProxyUnavailable(msg)
+    if expected and ip != expected:
+        msg = f"The browser exits from {ip}, not the login's proxy IP {expected}; the run stops rather than use another IP"
+        raise ProxyMismatch(msg)
+    progress.report(logger, "notice", message=f"Browser exits from {ip} through the login's proxy", code="proxy")
+    return ip
+
+
+def exit_ip(page: Page, logger: logging.Logger) -> str | None:
+    """The first IP an IP_CHECK_URLS service reports to this page, or None."""
+    for url in IP_CHECK_URLS:
+        try:
+            response = page.goto(url, timeout=IP_CHECK_TIMEOUT_MS, wait_until="domcontentloaded")
+            if response is None or not response.ok:
+                logger.info("Exit IP check %s answered %s", url, response.status if response else "nothing")
+                continue
+            body = response.text().strip()
+        except Exception as exc:  # noqa: BLE001 - try the next service
+            # The type only: a proxy error's text is not ours to vouch for.
+            logger.info("Exit IP check %s failed (%s)", url, type(exc).__name__)
+            continue
+        if body.startswith("{"):
+            try:
+                body = str(json.loads(body).get("ip", ""))
+            except (ValueError, AttributeError):
+                body = ""
+        try:
+            return str(ipaddress.ip_address(body))
+        except ValueError:
+            logger.info("Exit IP check %s answered something other than an IP", url)
+    return None
 
 
 def context_options(*, width: int = 1600, height: int = 1000) -> dict[str, object]:
     """new_context options for this run's browser (add storage_state and video on top)."""
     if max_stealth():
-        # The page takes the real window's size, so screen, window and viewport agree.
+        # The page takes the real window's size, so screen, window and viewport agree. The time
+        # zone is Chrome's own (TZ at launch).
         return {"no_viewport": True}
-    return {"viewport": {"width": width, "height": height}}
+    options: dict[str, object] = {"viewport": {"width": width, "height": height}}
+    # A login with its own time zone (to match its proxy's city) gets it under Playwright too.
+    timezone = os.environ.get(TIMEZONE_ENV, "").strip()
+    if timezone:
+        options["timezone_id"] = timezone
+    return options
 
 
 @dataclass
@@ -180,7 +295,9 @@ class BrowserRuntime:
         self._playwright = start_playwright(stealth=self._config.stealth)
         if max_stealth():
             self._logger.info("Browser: patchright with Google Chrome (this login is set to max stealth)")
-        self._browser = launch_chromium(self._playwright, headless=self._config.headless, width=width, height=height)
+        self._browser = launch_chromium(
+            self._playwright, headless=self._config.headless, width=width, height=height, logger=self._logger
+        )
         options = context_options(width=width, height=height)
         if storage_state is not None:
             options["storage_state"] = storage_state

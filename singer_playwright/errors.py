@@ -25,3 +25,21 @@ class ReAuthRequiredError(SessionInvalidError):
             "to sign in manually, then retry."
         )
         super().__init__(message or default)
+
+
+class ProxyError(Exception):
+    """The login's proxy failed: it did not answer, or the browser left from the wrong IP.
+
+    Never retried: a run that cannot leave from its login's own IP stops rather than use the
+    cloud's. The message never carries the proxy's username or password.
+    """
+
+    retryable = False
+
+
+class ProxyUnavailable(ProxyError):
+    """The proxy did not answer, or ARIA_PROXY_URL is not a proxy address."""
+
+
+class ProxyMismatch(ProxyError):
+    """The browser exits from an IP other than the login's expected one."""
