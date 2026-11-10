@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.1
+
+- Pins `playwright==1.63.0` and `patchright==1.64.4` exactly (they were floors). Playwright 1.65
+  reached images that install through Meltano or pip, whose driver also needs `libatomic1`. These
+  are the versions the connectors were tested on (aria-str-tap's uv.lock). The two packages ship
+  their own drivers and share only greenlet and pyee, which both accept.
+
 ## v0.12.0
 
 - `workshop act fill --value-env NAME` types the value of the daemon's environment variable NAME
