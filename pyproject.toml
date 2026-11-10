@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "singer-playwright"
-version = "0.12.0"
+version = "0.12.1"
 description = "Shared Playwright + Singer SDK base classes for browser-backed taps."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "patchright>=1.63.0",
-    "playwright>=1.52.0",
+    "patchright==1.64.4",
+    "playwright==1.63.0",
     "playwright-stealth>=2.0.3",
     "pyyaml>=6.0",
     "singer-sdk~=0.54.5",
